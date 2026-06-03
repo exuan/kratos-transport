@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -105,4 +106,110 @@ func TestServerPublishData(t *testing.T) {
 	host, port, err := net.SplitHostPort("127.0.0.1:8800")
 	require.NoError(t, err)
 	t.Logf("host: %s, port: %s", host, port)
+}
+
+func TestServerPublishDataWithEventName(t *testing.T) {
+	ctx := context.Background()
+	s := NewServer(WithCodec("json"))
+	defer s.Stop(ctx)
+
+	s.CreateStream("test")
+	stream := s.streamMgr.Get("test")
+	require.NotNil(t, stream)
+
+	sub := stream.addSubscriber(0, nil)
+
+	err := s.PublishDataWithEventName(ctx, "test", "notification", map[string]string{"message": "hello"})
+	require.NoError(t, err)
+
+	ev, err := waitEvent(sub.connection, time.Second)
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+	assert.Equal(t, []byte("notification"), ev.Event)
+
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(ev.Data, &body))
+	assert.Equal(t, "hello", body["message"])
+}
+
+func TestServerPublishDataWithMeta(t *testing.T) {
+	ctx := context.Background()
+	s := NewServer(WithCodec("json"))
+	defer s.Stop(ctx)
+
+	s.CreateStream("test")
+	stream := s.streamMgr.Get("test")
+	require.NotNil(t, stream)
+
+	sub := stream.addSubscriber(0, nil)
+
+	err := s.PublishDataWithMeta(ctx, "test", map[string]string{"message": "hello"},
+		WithEventName("notification"),
+		WithEventID("evt-001"),
+		WithEventRetry("3000"),
+	)
+	require.NoError(t, err)
+
+	ev, err := waitEvent(sub.connection, time.Second)
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+	assert.Equal(t, []byte("notification"), ev.Event)
+	assert.Equal(t, []byte("evt-001"), ev.ID)
+	assert.Equal(t, []byte("3000"), ev.Retry)
+
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(ev.Data, &body))
+	assert.Equal(t, "hello", body["message"])
+}
+
+func TestServerNotifyDataWithEventName(t *testing.T) {
+	ctx := context.Background()
+	s := NewServer(WithCodec("json"))
+	defer s.Stop(ctx)
+
+	s.CreateStream("test")
+	stream := s.streamMgr.Get("test")
+	require.NotNil(t, stream)
+
+	sub := stream.addSubscriber(0, nil)
+
+	err := s.NotifyDataWithEventName(ctx, "notification", map[string]bool{"ok": true})
+	require.NoError(t, err)
+
+	ev, err := waitEvent(sub.connection, time.Second)
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+	assert.Equal(t, []byte("notification"), ev.Event)
+
+	var body map[string]bool
+	require.NoError(t, json.Unmarshal(ev.Data, &body))
+	assert.Equal(t, true, body["ok"])
+}
+
+func TestServerNotifyDataWithMeta(t *testing.T) {
+	ctx := context.Background()
+	s := NewServer(WithCodec("json"))
+	defer s.Stop(ctx)
+
+	s.CreateStream("test")
+	stream := s.streamMgr.Get("test")
+	require.NotNil(t, stream)
+
+	sub := stream.addSubscriber(0, nil)
+
+	err := s.NotifyDataWithMeta(ctx, map[string]int{"count": 42},
+		WithEventName("update"),
+		WithEventComment("broadcast"),
+	)
+	require.NoError(t, err)
+
+	ev, err := waitEvent(sub.connection, time.Second)
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+	assert.Equal(t, []byte("update"), ev.Event)
+	assert.Equal(t, []byte("broadcast"), ev.Comment)
+
+	var body map[string]int
+	require.NoError(t, json.Unmarshal(ev.Data, &body))
+	assert.Equal(t, 42, body["count"])
 }

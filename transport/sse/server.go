@@ -65,6 +65,7 @@ type Server struct {
 	streamMgr *StreamManager
 }
 
+// NewServer creates and initializes an SSE server with the provided options.
 func NewServer(opts ...ServerOption) *Server {
 	srv := &Server{
 		network:     "tcp",
@@ -96,10 +97,12 @@ func NewServer(opts ...ServerOption) *Server {
 	return srv
 }
 
+// Name returns the transport kind name.
 func (s *Server) Name() string {
 	return KindSSE
 }
 
+// Start starts serving SSE requests until the server is shut down.
 func (s *Server) Start(ctx context.Context) error {
 	if err := s.listenAndEndpoint(); err != nil {
 		return err
@@ -130,6 +133,7 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop gracefully stops the server and cleans all streams.
 func (s *Server) Stop(ctx context.Context) error {
 	LogInfo("server stopping...")
 
@@ -143,6 +147,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	return err
 }
 
+// Endpoint returns the registry endpoint of this server.
 func (s *Server) Endpoint() (*url.URL, error) {
 	if err := s.listenAndEndpoint(); err != nil {
 		return nil, err
@@ -160,8 +165,9 @@ func (s *Server) listenAndEndpoint() error {
 	}
 
 	if s.endpoint == nil {
-		// 如果传入的是完整的ip地址，则不需要调整。
-		// 如果传入的只有端口号，则会调整为完整的地址，但，IP地址或许会不正确。
+		// If a full address is provided, keep it as-is.
+		// If only a port is provided, derive a full address from the listener.
+		// Note: the inferred IP may not always be the expected external address.
 		addr, err := transport.AdjustAddress(s.address, s.lis)
 		if err != nil {
 			s.err = err
@@ -174,22 +180,27 @@ func (s *Server) listenAndEndpoint() error {
 	return nil
 }
 
+// Handle registers an HTTP handler for an exact path.
 func (s *Server) Handle(path string, h http.Handler) {
 	s.router.Handle(path, h)
 }
 
+// HandlePrefix registers an HTTP handler for a path prefix.
 func (s *Server) HandlePrefix(prefix string, h http.Handler) {
 	s.router.PathPrefix(prefix).Handler(h)
 }
 
+// HandleFunc registers an HTTP handler function for an exact path.
 func (s *Server) HandleFunc(path string, h http.HandlerFunc) {
 	s.router.HandleFunc(path, h)
 }
 
+// HandleHeader registers an HTTP handler function matching a specific header key/value.
 func (s *Server) HandleHeader(key, val string, h http.HandlerFunc) {
 	s.router.Headers(key, val).Handler(h)
 }
 
+// HandleServeHTTP binds the server's SSE handler to the specified path.
 func (s *Server) HandleServeHTTP(path string) {
 	s.router.HandleFunc(path, s.ServeHTTP)
 }
@@ -221,6 +232,7 @@ func (s *Server) listen() error {
 	return nil
 }
 
+// Publish pushes an event to a specific stream if it exists.
 func (s *Server) Publish(_ context.Context, streamId StreamID, event *Event) {
 	stream := s.streamMgr.Get(streamId)
 	if stream == nil {
@@ -233,6 +245,7 @@ func (s *Server) Publish(_ context.Context, streamId StreamID, event *Event) {
 	}
 }
 
+// TryPublish attempts to push an event to a stream without blocking.
 func (s *Server) TryPublish(_ context.Context, streamId StreamID, event *Event) bool {
 	stream := s.streamMgr.Get(streamId)
 	if stream == nil {
@@ -247,15 +260,11 @@ func (s *Server) TryPublish(_ context.Context, streamId StreamID, event *Event) 
 	}
 }
 
+// PublishData encodes arbitrary data into an Event and publishes it to the target stream.
 func (s *Server) PublishData(ctx context.Context, streamId StreamID, data MessagePayload) error {
-	event := &Event{}
-
-	if data != nil {
-		var err error
-		event.Data, err = broker.Marshal(s.codec, data)
-		if err != nil {
-			return err
-		}
+	event, err := s.marshalEvent(data)
+	if err != nil {
+		return err
 	}
 
 	s.Publish(ctx, streamId, event)
@@ -263,6 +272,30 @@ func (s *Server) PublishData(ctx context.Context, streamId StreamID, data Messag
 	return nil
 }
 
+// PublishDataWithEventName encodes arbitrary data into an Event, sets its SSE event name,
+// and publishes it to the target stream.
+func (s *Server) PublishDataWithEventName(ctx context.Context, streamId StreamID, eventName string, data MessagePayload) error {
+	return s.PublishDataWithMeta(ctx, streamId, data, WithEventName(eventName))
+}
+
+// PublishDataWithMeta encodes arbitrary data into an Event, applies the given metadata options,
+// and publishes it to the target stream.
+func (s *Server) PublishDataWithMeta(ctx context.Context, streamId StreamID, data MessagePayload, opts ...EventMetaOption) error {
+	event, err := s.marshalEvent(data)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range opts {
+		o(event)
+	}
+
+	s.Publish(ctx, streamId, event)
+
+	return nil
+}
+
+// Notify broadcasts an event to all registered streams.
 func (s *Server) Notify(_ context.Context, event *Event) {
 	s.streamMgr.Range(func(stream *Stream) {
 		if stream == nil {
@@ -276,27 +309,37 @@ func (s *Server) Notify(_ context.Context, event *Event) {
 	})
 }
 
-func (s *Server) NotifyData(_ context.Context, data MessagePayload) error {
-	event := &Event{}
-
-	if data != nil {
-		var err error
-		event.Data, err = broker.Marshal(s.codec, data)
-		if err != nil {
-			return err
-		}
+// NotifyData encodes arbitrary data into an Event and broadcasts it to all registered streams.
+func (s *Server) NotifyData(ctx context.Context, data MessagePayload) error {
+	event, err := s.marshalEvent(data)
+	if err != nil {
+		return err
 	}
 
-	s.streamMgr.Range(func(stream *Stream) {
-		if stream == nil {
-			return
-		}
+	s.Notify(ctx, event)
 
-		select {
-		case <-stream.quit:
-		case stream.event <- s.process(event):
-		}
-	})
+	return nil
+}
+
+// NotifyDataWithEventName encodes arbitrary data into an Event, sets its SSE event name,
+// and broadcasts it to all registered streams.
+func (s *Server) NotifyDataWithEventName(ctx context.Context, eventName string, data MessagePayload) error {
+	return s.NotifyDataWithMeta(ctx, data, WithEventName(eventName))
+}
+
+// NotifyDataWithMeta encodes arbitrary data into an Event, applies the given metadata options,
+// and broadcasts it to all registered streams.
+func (s *Server) NotifyDataWithMeta(ctx context.Context, data MessagePayload, opts ...EventMetaOption) error {
+	event, err := s.marshalEvent(data)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range opts {
+		o(event)
+	}
+
+	s.Notify(ctx, event)
 
 	return nil
 }
@@ -310,6 +353,7 @@ func (s *Server) createStream(streamId StreamID) *Stream {
 	return stream
 }
 
+// CreateStream creates a new stream, or returns the existing one if it already exists.
 func (s *Server) CreateStream(streamId StreamID) *Stream {
 	stream := s.streamMgr.Get(streamId)
 	if stream != nil {
@@ -323,9 +367,23 @@ func (s *Server) CreateStream(streamId StreamID) *Stream {
 	return stream
 }
 
+// process applies server-side event transformations before delivery.
 func (s *Server) process(event *Event) *Event {
 	if s.encodeBase64 {
 		event.encodeBase64()
 	}
 	return event
+}
+
+// marshalEvent converts an arbitrary payload into an Event.
+func (s *Server) marshalEvent(data MessagePayload) (*Event, error) {
+	event := &Event{}
+	if data != nil {
+		var err error
+		event.Data, err = broker.Marshal(s.codec, data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return event, nil
 }

@@ -7,10 +7,13 @@ import (
 	"sync/atomic"
 )
 
+// StreamID uniquely identifies an SSE stream.
 type StreamID string
 
+// SubscriberFunction is invoked when a subscriber is added to or removed from a stream.
 type SubscriberFunction func(streamID StreamID, sub *Subscriber)
 
+// Stream holds subscribers and dispatches events for a single stream ID.
 type Stream struct {
 	id StreamID
 
@@ -32,6 +35,7 @@ type Stream struct {
 	onUnsubscribe SubscriberFunction
 }
 
+// newStream creates a stream instance with subscriber callbacks and buffering settings.
 func newStream(id StreamID, buffSize int, replay, autoStream bool, onSubscribe, onUnsubscribe SubscriberFunction) *Stream {
 	return &Stream{
 		id:            id,
@@ -48,10 +52,12 @@ func newStream(id StreamID, buffSize int, replay, autoStream bool, onSubscribe, 
 	}
 }
 
+// StreamID returns the stream identifier.
 func (s *Stream) StreamID() StreamID {
 	return s.id
 }
 
+// run starts the stream event loop.
 func (s *Stream) run() {
 	go func(stream *Stream) {
 		for {
@@ -88,6 +94,7 @@ func (s *Stream) run() {
 	}(s)
 }
 
+// close stops the stream event loop once.
 func (s *Stream) close() {
 	s.quitOnce.Do(func() {
 		close(s.quit)

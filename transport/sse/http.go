@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// prepareHeaderForSSE writes the default SSE and CORS response headers.
 func (s *Server) prepareHeaderForSSE(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -21,8 +22,9 @@ func (s *Server) prepareHeaderForSSE(w http.ResponseWriter) {
 	}
 }
 
+// ServeHTTP handles SSE subscription requests and streams events to the client.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// OPTIONS preflight：先写 CORS 头再直接放行，不走鉴权
+	// Handle OPTIONS preflight by returning CORS headers without auth checks.
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Origin", s.corsAllowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
