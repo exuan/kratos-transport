@@ -10,7 +10,7 @@ type Subscriber struct {
 	quit       chan *Subscriber
 	connection chan *Event
 	removed    chan struct{}
-	eventId    int
+	eventId    string
 	URL        *url.URL
 	Header     http.Header
 }

@@ -60,7 +60,7 @@ func TestServerExistingStreamPublish(t *testing.T) {
 	s.CreateStream("test")
 
 	stream := s.streamMgr.Get("test")
-	sub := stream.addSubscriber(0, nil)
+	sub := stream.addSubscriber("", nil)
 
 	go func() {
 		_ = s.Start(ctx)
@@ -117,7 +117,7 @@ func TestServerPublishDataWithEventName(t *testing.T) {
 	stream := s.streamMgr.Get("test")
 	require.NotNil(t, stream)
 
-	sub := stream.addSubscriber(0, nil)
+	sub := stream.addSubscriber("", nil)
 
 	err := s.PublishDataWithEventName(ctx, "test", "notification", map[string]string{"message": "hello"})
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestServerPublishDataWithMeta(t *testing.T) {
 	stream := s.streamMgr.Get("test")
 	require.NotNil(t, stream)
 
-	sub := stream.addSubscriber(0, nil)
+	sub := stream.addSubscriber("", nil)
 
 	err := s.PublishDataWithMeta(ctx, "test", map[string]string{"message": "hello"},
 		WithEventName("notification"),
@@ -171,7 +171,7 @@ func TestServerNotifyDataWithEventName(t *testing.T) {
 	stream := s.streamMgr.Get("test")
 	require.NotNil(t, stream)
 
-	sub := stream.addSubscriber(0, nil)
+	sub := stream.addSubscriber("", nil)
 
 	err := s.NotifyDataWithEventName(ctx, "notification", map[string]bool{"ok": true})
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestServerNotifyDataWithMeta(t *testing.T) {
 	stream := s.streamMgr.Get("test")
 	require.NotNil(t, stream)
 
-	sub := stream.addSubscriber(0, nil)
+	sub := stream.addSubscriber("", nil)
 
 	err := s.NotifyDataWithMeta(ctx, map[string]int{"count": 42},
 		WithEventName("update"),

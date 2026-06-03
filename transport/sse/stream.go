@@ -110,7 +110,7 @@ func (s *Stream) getSubIndex(sub *Subscriber) int {
 	return -1
 }
 
-func (s *Stream) addSubscriber(eventId int, req *http.Request) *Subscriber {
+func (s *Stream) addSubscriber(eventId string, req *http.Request) *Subscriber {
 	atomic.AddInt32(&s.subscriberCount, 1)
 
 	var requestURL *url.URL

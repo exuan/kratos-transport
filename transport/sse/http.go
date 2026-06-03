@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -74,14 +73,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		stream = s.CreateStream(StreamID(streamID))
 	}
 
-	eventId := 0
+	eventId := ""
 	if id := r.Header.Get("Last-Event-ID"); id != "" {
-		var err error
-		eventId, err = strconv.Atoi(id)
-		if err != nil {
-			writeError(w, "Last-Event-ID must be a number!", http.StatusBadRequest)
-			return
-		}
+		eventId = id
 	}
 
 	sub := stream.addSubscriber(eventId, r)

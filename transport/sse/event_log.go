@@ -1,8 +1,10 @@
 package sse
 
 import (
-	"strconv"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type EventLog []*Event
@@ -12,7 +14,7 @@ func (e *EventLog) Add(ev *Event) {
 		return
 	}
 
-	ev.ID = []byte(e.currentIndex())
+	ev.ID = []byte(newEventID())
 	ev.timestamp = time.Now()
 	*e = append(*e, ev)
 }
@@ -23,13 +25,14 @@ func (e *EventLog) Clear() {
 
 func (e *EventLog) Replay(s *Subscriber) {
 	for i := 0; i < len(*e); i++ {
-		id, _ := strconv.Atoi(string((*e)[i].ID))
-		if id >= s.eventId {
+		if string((*e)[i].ID) >= s.eventId {
 			s.connection <- (*e)[i]
 		}
 	}
 }
 
-func (e *EventLog) currentIndex() string {
-	return strconv.Itoa(len(*e))
+// newEventID generates a new UUID v7 as the event identifier.
+// UUID v7 is time-ordered, ensuring lexicographic sort matches chronological order.
+func newEventID() string {
+	return strings.ReplaceAll(uuid.Must(uuid.NewV7()).String(), "-", "")
 }
