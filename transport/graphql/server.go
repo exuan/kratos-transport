@@ -3,6 +3,7 @@ package graphql
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,10 +12,11 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 
-	"github.com/gorilla/mux"
-
-	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v2/middleware"
 	kratosTransport "github.com/go-kratos/kratos/v2/transport"
+	kHttp "github.com/go-kratos/kratos/v2/transport/http"
+
+	"github.com/gorilla/mux"
 
 	"github.com/tx7do/kratos-transport/transport"
 )
@@ -27,20 +29,24 @@ var (
 type Server struct {
 	*http.Server
 
-	es graphql.ExecutableSchema
-
 	lis      net.Listener
 	tlsConf  *tls.Config
-	router   *mux.Router
 	endpoint *url.URL
 
-	network string
-	address string
-
+	network     string
+	address     string
 	strictSlash bool
 	timeout     time.Duration
 
 	err error
+
+	filters []kHttp.FilterFunc
+	ms      []middleware.Middleware
+	dec     kHttp.DecodeRequestFunc
+	enc     kHttp.EncodeResponseFunc
+	ene     kHttp.EncodeErrorFunc
+
+	router *mux.Router
 }
 
 func NewServer(opts ...ServerOption) *Server {
@@ -49,6 +55,9 @@ func NewServer(opts ...ServerOption) *Server {
 		address:     ":0",
 		timeout:     1 * time.Second,
 		strictSlash: true,
+		dec:         kHttp.DefaultRequestDecoder,
+		enc:         kHttp.DefaultResponseEncoder,
+		ene:         kHttp.DefaultErrorEncoder,
 	}
 
 	srv.init(opts...)
@@ -72,11 +81,13 @@ func (s *Server) init(opts ...ServerOption) {
 	s.router = mux.NewRouter().StrictSlash(s.strictSlash)
 	s.router.NotFoundHandler = http.DefaultServeMux
 	s.router.MethodNotAllowedHandler = http.DefaultServeMux
-	//srv.router.Use(srv.filter())
+
+	// Apply the request filter middleware (timeout control, transport injection)
+	handler := s.filter()(s.router)
 
 	s.Server = &http.Server{
 		TLSConfig: s.tlsConf,
-		Handler:   s.router,
+		Handler:   kHttp.FilterChain(s.filters...)(handler),
 	}
 }
 
@@ -97,7 +108,11 @@ func (s *Server) listenAndEndpoint() error {
 			return err
 		}
 
-		s.endpoint = transport.NewRegistryEndpoint(KindGraphQL, addr)
+		scheme := "http"
+		if s.tlsConf != nil {
+			scheme = "https"
+		}
+		s.endpoint = transport.NewRegistryEndpoint(scheme, addr)
 	}
 
 	return nil
@@ -111,18 +126,15 @@ func (s *Server) Endpoint() (*url.URL, error) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	if s.err = s.listenAndEndpoint(); s.err != nil {
-		return s.err
-	}
-
-	if s.err != nil {
-		return s.err
+	if err := s.listenAndEndpoint(); err != nil {
+		return err
 	}
 
 	s.BaseContext = func(net.Listener) context.Context {
 		return ctx
 	}
 	LogInfof("server listening on: %s", s.lis.Addr().String())
+
 	var err error
 	if s.tlsConf != nil {
 		err = s.ServeTLS(s.lis, "", "")
@@ -144,4 +156,50 @@ func (s *Server) Stop(ctx context.Context) error {
 	LogInfo("server stopped.")
 
 	return err
+}
+
+func (s *Server) HandleFunc(path string, h http.HandlerFunc) {
+	s.router.HandleFunc(path, h)
+}
+
+func (s *Server) HandlePrefix(prefix string, h http.Handler) {
+	s.router.PathPrefix(prefix).Handler(h)
+}
+
+func (s *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	s.Handler.ServeHTTP(res, req)
+}
+
+func (s *Server) filter() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			var (
+				ctx    context.Context
+				cancel context.CancelFunc
+			)
+			if s.timeout > 0 {
+				ctx, cancel = context.WithTimeout(req.Context(), s.timeout)
+			} else {
+				ctx, cancel = context.WithCancel(req.Context())
+			}
+			defer cancel()
+
+			pathTemplate := req.URL.Path
+			if route := mux.CurrentRoute(req); route != nil {
+				pathTemplate, _ = route.GetPathTemplate()
+			}
+
+			tr := &Transport{
+				endpoint:     s.endpoint.String(),
+				operation:    pathTemplate,
+				reqHeader:    headerCarrier(req.Header),
+				replyHeader:  headerCarrier(w.Header()),
+				request:      req,
+				pathTemplate: pathTemplate,
+			}
+
+			tr.request = req.WithContext(kratosTransport.NewServerContext(ctx, tr))
+			next.ServeHTTP(w, tr.request)
+		})
+	}
 }
