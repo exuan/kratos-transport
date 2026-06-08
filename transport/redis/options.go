@@ -82,3 +82,10 @@ func WithMaxActive(n int) ServerOption {
 		s.brokerOpts = append(s.brokerOpts, redis.WithMaxActive(n))
 	}
 }
+
+// WithDriverType sets the Redis driver type (PubSub or Stream).
+func WithDriverType(driverType redis.DriverType) ServerOption {
+	return func(s *Server) {
+		s.driverType = driverType
+	}
+}

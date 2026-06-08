@@ -62,3 +62,10 @@ func WithPropagator(propagators propagation.TextMapPropagator) ServerOption {
 		s.brokerOpts = append(s.brokerOpts, broker.WithPropagator(propagators))
 	}
 }
+
+// WithJetStream enables NATS JetStream mode instead of core NATS.
+func WithJetStream() ServerOption {
+	return func(s *Server) {
+		s.useJetStream = true
+	}
+}

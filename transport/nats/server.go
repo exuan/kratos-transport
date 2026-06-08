@@ -24,7 +24,8 @@ var (
 
 type Server struct {
 	broker.Broker
-	brokerOpts []broker.Option
+	brokerOpts   []broker.Option
+	useJetStream bool
 
 	subscribers    broker.SubscriberMap
 	subscriberOpts transport.SubscribeOptionMap
@@ -63,6 +64,9 @@ func (s *Server) init(opts ...ServerOption) {
 
 	s.Broker = nats.NewBroker(s.brokerOpts...)
 
+	if s.useJetStream {
+		s.Broker = nats.NewJetStreamBroker(s.brokerOpts...)
+	}
 }
 
 func (s *Server) Name() string {
