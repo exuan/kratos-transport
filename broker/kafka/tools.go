@@ -2,48 +2,50 @@ package kafka
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 
 	kafkaGo "github.com/segmentio/kafka-go"
 )
 
-func createConnection(addr string) (*kafkaGo.Conn, func()) {
+func createConnection(addr string) (*kafkaGo.Conn, func(), error) {
 	conn, err := kafkaGo.Dial("tcp", addr)
 	if err != nil {
 		LogErrorf("create kafka connection failed: %s", err.Error())
-		return nil, nil
+		return nil, nil, err
 	}
 
 	controller, err := conn.Controller()
 	if err != nil {
 		LogErrorf("create kafka controller failed: %s", err.Error())
-		return nil, nil
+		return nil, nil, err
 	}
 
 	controllerConn, err := kafkaGo.Dial("tcp", net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port)))
 	if err != nil {
-		panic(err.Error())
+		LogErrorf("create kafka controller connection failed: %s", err.Error())
+		return nil, nil, err
 	}
 
 	return controllerConn, func() {
 		if err = conn.Close(); err != nil {
-			LogFatalf("failed to close kafka connection: %v", err)
+			LogErrorf("failed to close kafka connection: %v", err)
 		}
 		if err = controllerConn.Close(); err != nil {
-			LogFatalf("failed to close kafka controller connection: %v", err)
+			LogErrorf("failed to close kafka controller connection: %v", err)
 		}
-	}
+	}, nil
 }
 
 func CreateTopic(addr string, topic string, numPartitions, replicationFactor int) error {
-	conn, cleanFunc := createConnection(addr)
-	if conn == nil {
-		return errors.New("create kafka connection failed")
+	conn, cleanFunc, err := createConnection(addr)
+	if err != nil {
+		return fmt.Errorf("create kafka connection failed: %w", err)
 	}
 	defer cleanFunc()
 
-	err := conn.CreateTopics(kafkaGo.TopicConfig{
+	err = conn.CreateTopics(kafkaGo.TopicConfig{
 		Topic:             topic,
 		NumPartitions:     numPartitions,
 		ReplicationFactor: replicationFactor,
@@ -56,9 +58,9 @@ func CreateTopic(addr string, topic string, numPartitions, replicationFactor int
 }
 
 func DeleteTopic(addr string, topics ...string) error {
-	conn, cleanFunc := createConnection(addr)
-	if conn == nil {
-		return errors.New("create kafka connection failed")
+	conn, cleanFunc, err := createConnection(addr)
+	if err != nil {
+		return fmt.Errorf("create kafka connection failed: %w", err)
 	}
 	defer cleanFunc()
 

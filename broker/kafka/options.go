@@ -270,6 +270,8 @@ type readBatchTimeoutKey struct{}
 type readBackoffMin struct{}
 type readBackoffMax struct{}
 
+type subscribeRetriesCountKey struct{}
+
 type subscribeBatchSizeKey struct{}
 type subscribeBatchIntervalKey struct{}
 
@@ -290,7 +292,7 @@ func WithDialerTimeout(tm time.Duration) broker.SubscribeOption {
 
 // WithRetries 设置消息重发的次数
 func WithRetries(cnt int) broker.SubscribeOption {
-	return broker.SubscribeContextWithValue(retriesCountKey{}, cnt)
+	return broker.SubscribeContextWithValue(subscribeRetriesCountKey{}, cnt)
 }
 
 // WithQueueCapacity .

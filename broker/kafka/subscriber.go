@@ -254,8 +254,7 @@ func (s *subscriber) processSingleMessage() {
 			// 成功读取，重置退避计数
 			errorAttempt = 0
 
-			if done := s.handleMessage(km); done {
-			}
+			_ = s.handleMessage(km)
 		}
 	}
 }
@@ -273,7 +272,8 @@ func (s *subscriber) handleMessage(km kafkaGo.Message) bool {
 
 	var span trace.Span
 	var ctx context.Context
-	ctx, span = s.b.startConsumerSpan(s.options.Context, &km)
+	// Use context.Background() as base to isolate each message's span tree
+	ctx, span = s.b.startConsumerSpan(context.Background(), &km)
 
 	bm := &broker.Message{
 		Headers:   kafkaHeaderToMap(km.Headers),

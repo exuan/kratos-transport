@@ -265,7 +265,7 @@ func (b *kafkaBroker) Connect() error {
 	}
 
 	if len(kAddrs) == 0 {
-		return errors.New("no available commons")
+		return errors.New("no available brokers")
 	}
 
 	b.Lock()
@@ -460,10 +460,6 @@ func (b *kafkaBroker) publishMultipleWriter(ctx context.Context, topic string, m
 		}
 	}
 
-	if !b.writerConfig.Async {
-		finish()
-	}
-
 	return err
 }
 
@@ -555,10 +551,6 @@ func (b *kafkaBroker) publishOneWriter(ctx context.Context, topic string, msg *b
 				}
 			}
 		}
-	}
-
-	if !b.writerConfig.Async {
-		finish()
 	}
 
 	return err
