@@ -1,55 +1,122 @@
-# Redis
+# Redis Broker
 
-## 什么是 Redis？
+基于 [gomodule/redigo](https://github.com/gomodule/redigo) 实现的 Redis 消息代理，支持两种驱动模式：
 
-Redis 是一个基于内存的高性能 key-value 数据库。是完全开源免费的，用C语言编写的，遵守BSD协议。
+| 驱动 | 说明 | 适用场景 |
+|------|------|----------|
+| `DriverTypePubSub` | Pub/Sub 发布订阅模式 | 实时推送、轻量级消息广播 |
+| `DriverTypeStream` | Stream 消息队列模式 | 需要持久化、消费确认、消费组的场景 |
 
-Redis 特点：
+## 两种模式对比
 
-- Redis 是基于内存操作的，吞吐量非常高，可以在 1s内完成十万次读写操作
-- Redis 的读写模块是单线程，每个操作都具原子性
-- Redis 支持数据的持久化，可以将内存中的数据保存在磁盘中，重启可以再次加载，但可能会有极短时间内数据丢失
-- Redis 支持多种数据结构，String，list，set，zset，hash等
+| 特性 | Pub/Sub | Stream |
+|------|---------|--------|
+| 消息持久化 | ❌ 离线消息丢失 | ✅ 持久化到磁盘 |
+| 消费确认 (ACK) | ❌ | ✅ `XACK` |
+| 消费组 | ❌ | ✅ `XGROUP` / `XREADGROUP` |
+| 消息回溯 | ❌ | ✅ 按 ID 范围读取 |
+| 断线自动重连 | ✅ 指数退避 (1s→30s) | ✅ 指数退避 (1s→30s) |
+| 发布命令 | `PUBLISH` | `XADD` |
+| 订阅命令 | `SUBSCRIBE` | `XREADGROUP` |
+| 消息裁剪 | N/A | ✅ `MAXLEN` |
 
-## Redis 发布订阅
+## 快速开始
 
-Redis 发布订阅 (pub/sub) 是一种消息通信模式：发送者 (pub) 发送消息，订阅者 (sub) 接收消息。
+### Pub/Sub 模式
 
-Redis 的 SUBSCRIBE 命令可以让客户端订阅任意数量的频道， 每当有新信息发送到被订阅的频道时， 信息就会被发送给所有订阅指定频道的客户端。
+```go
+package main
 
-## Redis发布订阅相关命令
+import (
+	"context"
+	"github.com/tx7do/kratos-transport/broker"
+	"github.com/tx7do/kratos-transport/broker/redis"
+)
 
-利用了Redis的发布订阅命令
+func main() {
+	b := redis.NewBroker(redis.DriverTypePubSub,
+		broker.WithAddress("127.0.0.1:6379"),
+		broker.WithCodec("json"),
+	)
 
-### PUBLISH channel message
+	_ = b.Init()
+	_ = b.Connect()
+	defer b.Disconnect()
 
-用于将信息发送到指定的频道。
+	// 发布
+	_ = b.Publish(context.Background(), "test_topic", broker.NewMessage(msg))
 
-### SUBSCRIBE channel [channel …]
+	// 订阅
+	sub, _ := b.Subscribe("test_topic", handler, binder)
+}
+```
 
-订阅给定的一个或多个频道的信息
+### Stream 模式
 
-### UNSUBSCRIBE [channel [channel …]]
+```go
+package main
 
-指退订给定的频道
+import (
+	"context"
+	"time"
+	"github.com/tx7do/kratos-transport/broker"
+	"github.com/tx7do/kratos-transport/broker/redis"
+)
 
-### PSUBSCRIBE pattern [pattern ...]
+func main() {
+	b := redis.NewBroker(redis.DriverTypeStream,
+		broker.WithAddress("127.0.0.1:6379"),
+		broker.WithCodec("json"),
+	)
 
-订阅一个或多个符合给定模式的频道
+	_ = b.Init()
+	_ = b.Connect()
+	defer b.Disconnect()
 
-### PUBSUB subcommand [argument [argument ...]]
+	// 发布（支持 MAXLEN 裁剪）
+	_ = b.Publish(context.Background(), "mystream", broker.NewMessage(msg),
+		redis.WithStreamMaxLen(10000),
+	)
 
-查看订阅与发布系统状态
+	// 订阅（消费组 + 自动确认）
+	sub, _ := b.Subscribe("mystream", handler, binder,
+		redis.WithStreamGroup("my-group"),
+		redis.WithStreamConsumer("consumer-1"),
+		redis.WithStreamBlockTime(5*time.Second),
+		redis.WithStreamCount(100),
+	)
+}
+```
 
-### PUNSUBSCRIBE [pattern [pattern ...]]
+## 配置选项
 
-退订所有给定模式的频道
+### 通用选项
 
-## Docker部署开发环境
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `redis.WithAddress(addr)` | Redis 服务器地址 | `redis://127.0.0.1:6379` |
+| `redis.WithCodec(name)` | 编解码器 | `` (原始数据) |
+| `redis.WithConnectTimeout(d)` | 连接超时 | 30s |
+| `redis.WithReadTimeout(d)` | 读超时 | 30s |
+| `redis.WithWriteTimeout(d)` | 写超时 | 30s |
+| `redis.WithIdleTimeout(d)` | 空闲连接超时 | 0 (不关闭) |
+| `redis.WithMaxIdle(n)` | 最大空闲连接数 | 256 |
+| `redis.WithMaxActive(n)` | 最大连接数 | 0 (不限制) |
+
+### Stream 专属选项
+
+| 选项 | 说明 | 默认值 | 类型 |
+|------|------|--------|------|
+| `redis.WithStreamGroup(name)` | 消费组名称 | `kratos-group` | SubscribeOption |
+| `redis.WithStreamConsumer(name)` | 消费者名称 | `kratos-consumer` | SubscribeOption |
+| `redis.WithStreamBlockTime(d)` | XREADGROUP 阻塞等待时间 | 5s | SubscribeOption |
+| `redis.WithStreamCount(n)` | 每次读取的最大消息数 | 10 | SubscribeOption |
+| `redis.WithStreamMaxLen(n)` | XADD 时 MAXLEN 限制 | 0 (不限制) | PublishOption |
+
+## Docker 部署开发环境
 
 ```shell
 docker pull bitnami/redis:latest
-docker pull bitnami/redis-exporter:latest
 
 docker run -itd \
     --name redis-test \
@@ -65,5 +132,6 @@ docker run -itd \
 
 ## 注意事项
 
-- Redis无法对消息持久化存储，一旦消息被发送，而此时没有订阅者接收，那么消息就会丢失；
-- 其他的一些消息队列（Kafka、Rabbitmq等）提供了消息传输保障，当客户端连接超时或事务回滚等情况发生时，消息会被重新发送给客户端，而Redis没有提供消息传输保障。
+- **Pub/Sub 模式**：消息不持久化，发送时无订阅者则消息丢失；不提供消息传输保障
+- **Stream 模式**：消息持久化到磁盘，支持消费确认 (XACK) 和消费组，适合需要可靠消费的场景
+- 两种模式共享连接池配置，切换模式只需更改 `DriverType` 参数

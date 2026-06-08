@@ -34,7 +34,7 @@ func Test_Publish_WithRawData(t *testing.T) {
 
 	ctx := context.Background()
 
-	b := NewBroker(
+	b := NewBroker(DriverTypePubSub,
 		broker.WithOptionContext(ctx),
 		broker.WithAddress(localBroker),
 	)
@@ -70,7 +70,7 @@ func Test_Subscribe_WithRawData(t *testing.T) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	b := NewBroker(
+	b := NewBroker(DriverTypePubSub,
 		broker.WithAddress(localBroker),
 	)
 	defer b.Disconnect()
@@ -94,7 +94,7 @@ func Test_Publish_WithJsonCodec(t *testing.T) {
 
 	ctx := context.Background()
 
-	b := NewBroker(
+	b := NewBroker(DriverTypePubSub,
 		broker.WithOptionContext(ctx),
 		broker.WithAddress(localBroker),
 		broker.WithCodec("json"),
@@ -130,7 +130,7 @@ func Test_Subscribe_WithJsonCodec(t *testing.T) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	b := NewBroker(
+	b := NewBroker(DriverTypePubSub,
 		broker.WithAddress(localBroker),
 		broker.WithCodec("json"),
 	)

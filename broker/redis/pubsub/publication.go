@@ -1,4 +1,4 @@
-package redis
+package pubsub
 
 import "github.com/tx7do/kratos-transport/broker"
 

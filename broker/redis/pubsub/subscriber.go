@@ -1,4 +1,4 @@
-package redis
+package pubsub
 
 import (
 	"errors"
@@ -7,12 +7,13 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/tx7do/kratos-transport/broker"
+	redisOption "github.com/tx7do/kratos-transport/broker/redis/option"
 )
 
 type subscriber struct {
 	sync.RWMutex
 
-	b *redisBroker
+	b *pubsubBroker
 
 	topic  string
 	closed bool
@@ -25,10 +26,6 @@ type subscriber struct {
 	conn *redis.PubSubConn
 }
 
-func (s *subscriber) onStart() error {
-	return nil
-}
-
 func (s *subscriber) onMessage(channel string, data []byte) error {
 	var m broker.Message
 
@@ -36,7 +33,6 @@ func (s *subscriber) onMessage(channel string, data []byte) error {
 		m.Body = s.binder()
 
 		if err := broker.Unmarshal(s.b.options.Codec, data, &m.Body); err != nil {
-			//LogError(err)
 			return err
 		}
 	} else {
@@ -61,17 +57,6 @@ func (s *subscriber) onMessage(channel string, data []byte) error {
 	return nil
 }
 
-func (s *subscriber) ping() error {
-	if s.conn == nil {
-		return errors.New("cannot ping")
-	}
-
-	if err := s.conn.Ping(""); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *subscriber) recv() {
 	reconnectDelay := 1 * time.Second
 	maxReconnectDelay := 30 * time.Second
@@ -88,7 +73,7 @@ func (s *subscriber) recv() {
 
 		if !hasConn {
 			if !s.reconnect() {
-				LogErrorf("reconnect failed, retrying in %v...", reconnectDelay)
+				redisOption.LogErrorf("reconnect failed, retrying in %v...", reconnectDelay)
 				select {
 				case <-time.After(reconnectDelay):
 				case <-s.options.Context.Done():
@@ -117,7 +102,7 @@ func (s *subscriber) recv() {
 			return
 		}
 
-		LogErrorf("recv error: %s, reconnecting in %v...", err.Error(), reconnectDelay)
+		redisOption.LogErrorf("recv error: %s, reconnecting in %v...", err.Error(), reconnectDelay)
 
 		select {
 		case <-time.After(reconnectDelay):
@@ -136,7 +121,7 @@ func (s *subscriber) receiveLoop() error {
 	defer close(stopPing)
 
 	pingErr := make(chan error, 1)
-	ticker := time.NewTicker(DefaultHealthCheckPeriod)
+	ticker := time.NewTicker(redisOption.DefaultHealthCheckPeriod)
 	defer ticker.Stop()
 
 	// 健康检查协程
@@ -183,7 +168,7 @@ func (s *subscriber) receiveLoop() error {
 
 		case redis.Message:
 			if err := s.onMessage(x.Channel, x.Data); err != nil {
-				LogErrorf("onMessage error: %s", err.Error())
+				redisOption.LogErrorf("onMessage error: %s", err.Error())
 			}
 
 		case redis.Subscription:
@@ -192,7 +177,7 @@ func (s *subscriber) receiveLoop() error {
 			}
 
 		case redis.Pong:
-			LogDebug(" pong")
+			redisOption.LogDebug("pong")
 		}
 	}
 }
@@ -207,18 +192,18 @@ func (s *subscriber) reconnect() bool {
 
 	conn := &redis.PubSubConn{Conn: s.b.pool.Get()}
 	if conn.Conn == nil {
-		LogError("failed to get connection from pool")
+		redisOption.LogError("failed to get connection from pool")
 		return false
 	}
 
 	if err := conn.Subscribe(s.topic); err != nil {
 		_ = conn.Close()
-		LogErrorf("resubscribe error: %s", err.Error())
+		redisOption.LogErrorf("resubscribe error: %s", err.Error())
 		return false
 	}
 
 	s.conn = conn
-	LogInfof("reconnected and resubscribed to topic: %s", s.topic)
+	redisOption.LogInfof("reconnected and resubscribed to topic: %s", s.topic)
 	return true
 }
 

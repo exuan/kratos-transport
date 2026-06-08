@@ -58,7 +58,7 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	b := redis.NewBroker(
+	b := redis.NewBroker(redis.DriverTypePubSub,
 		broker.WithCodec("json"),
 		broker.WithAddress(localBroker),
 	)
