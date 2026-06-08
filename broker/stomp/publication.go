@@ -38,5 +38,5 @@ func (p *publication) Message() *broker.Message {
 }
 
 func (p *publication) RawMessage() any {
-	return p.broker
+	return p.msg
 }

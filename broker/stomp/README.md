@@ -41,6 +41,80 @@ STOMP的客户端和服务器之间的通信是通过MESSAGE帧、RECEIPT帧或E
 | Stampy          | 1.2         | STOMP 1.2规范的一个Java实现 http://mrstampy.github.com/Stampy/                                   |
 | StompServer     | 1.0         | 一个轻量级的纯Ruby实现的STOMP服务器 http://stompserver.rubyforge.org/                                  |
 
+## 使用方式
+
+### 基础：发布/订阅
+
+```go
+b := stomp.NewBroker(
+    broker.WithAddress("127.0.0.1:61613"),
+    broker.WithCodec("json"),
+    stomp.WithAuth("admin", "admin"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
+
+// 发布
+b.Publish(ctx, "/queue/test", broker.NewMessage(msg))
+
+// 订阅
+sub, _ := b.Subscribe("/queue/test", handler, binder)
+```
+
+### 高级：心跳 + 超时配置
+
+```go
+b := stomp.NewBroker(
+    broker.WithAddress("127.0.0.1:61613"),
+    stomp.WithHeartBeat(10*time.Second, 10*time.Second),
+    stomp.WithConnectTimeout(5*time.Second),
+    stomp.WithMsgSendTimeout(3*time.Second),
+    stomp.WithRcvReceiptTimeout(3*time.Second),
+)
+```
+
+### 高级：持久化订阅
+
+```go
+sub, _ := b.Subscribe("/queue/test", handler, binder,
+    stomp.WithDurable(),
+    stomp.WithAckOnSuccess(),
+)
+```
+
+## 配置选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `stomp.WithAuth(user, pass)` | 用户名密码认证 |
+| `stomp.WithConnectTimeout(d)` | 连接超时 |
+| `stomp.WithConnectHeaders(h)` | 连接头信息 |
+| `stomp.WithVirtualHost(h)` | 虚拟主机 |
+| `stomp.WithHeartBeat(send, recv)` | 心跳间隔 |
+| `stomp.WithHeartBeatError(d)` | 心跳超时 |
+| `stomp.WithMsgSendTimeout(d)` | 发送超时 |
+| `stomp.WithRcvReceiptTimeout(d)` | 接收回执超时 |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `stomp.WithHeaders(h)` | 自定义消息头 |
+| `stomp.WithReceipt(d)` | 要求回执确认 |
+| `stomp.WithSuppressContentLength(d)` | 抑制 Content-Length 头 |
+
+### Subscribe 选项
+
+| 选项 | 说明 |
+|------|------|
+| `stomp.WithDurable()` | 持久化订阅 |
+| `stomp.WithSubscribeHeaders(h)` | 订阅头信息 |
+| `stomp.WithAckOnSuccess()` | 处理成功自动 ACK |
+| `stomp.WithSubscribeContext(ctx)` | 自定义 context |
+
 ## Docker部署开发服务器
 
 ### ActiveMQ

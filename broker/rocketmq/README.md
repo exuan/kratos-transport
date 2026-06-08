@@ -102,6 +102,36 @@ Broker 有几个重要的子模块：
 
 一个消费者集群对应一个Group ID，一个Group ID可以订阅多个Topic，如上图中的Group 2所示。Group和Topic的订阅关系可以通过直接在程序中设置即可。
 
+## 使用方式
+
+本模块支持三种客户端实现，通过不同的构造函数选择：
+
+| 客户端 | 构造方式 | 说明 |
+|--------|----------|------|
+| `rocketmq-clients` (v5) | `rocketmq.NewBroker()` | 官方 v5 gRPC 协议客户端（推荐） |
+| `rocketmq-client-go` (v2) | `rocketmq_client_go.NewBroker()` | 社区版 v2 Remoting 协议客户端 |
+| `aliun` | `aliun.NewBroker()` | 阿里云商业版 RocketMQ 客户端 |
+
+### 基础：发布/订阅（v5 客户端）
+
+```go
+b := rocketmq.NewBroker(
+    broker.WithAddress("127.0.0.1:8081"),
+    broker.WithCodec("json"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
+
+// 发布
+b.Publish(ctx, "test-topic", broker.NewMessage(msg))
+
+// 订阅
+sub, _ := b.Subscribe("test-topic", handler, binder,
+    broker.WithSubscribeQueueName("my-group"),
+)
+```
+
 ## Docker部署开发环境
 
 必须要至少启动一个NameServer，一个Broker。

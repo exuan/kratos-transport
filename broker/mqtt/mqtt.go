@@ -348,14 +348,21 @@ func (m *mqttBroker) onConnectionLost(client paho.Client, err error) {
 }
 
 func (m *mqttBroker) loopConnect(client paho.Client) {
+	reconnectDelay := 1 * time.Second
+	maxReconnectDelay := 30 * time.Second
+
 	for {
 		token := client.Connect()
-		if rs, err := checkClientToken(token); !rs {
-			LogErrorf("connect error: %s", err.Error())
-		} else {
-			break
+		if rs, _ := checkClientToken(token); rs {
+			return
 		}
-		time.Sleep(1 * time.Second)
+
+		LogErrorf("reconnect failed, retrying in %v...", reconnectDelay)
+		time.Sleep(reconnectDelay)
+
+		if reconnectDelay < maxReconnectDelay {
+			reconnectDelay *= 2
+		}
 	}
 }
 

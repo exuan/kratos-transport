@@ -47,6 +47,105 @@ docker run -itd \
     soldevelo/kafka:latest
 ```
 
+## 使用方式
+
+### 基础：发布/订阅
+
+```go
+b := kafka.NewBroker(
+    broker.WithAddress("127.0.0.1:9092"),
+    broker.WithCodec("json"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
+
+// 发布
+b.Publish(ctx, "test-topic", broker.NewMessage(msg))
+
+// 订阅（自动消费组）
+sub, _ := b.Subscribe("test-topic", handler, binder,
+    broker.WithSubscribeQueueName("my-group"),
+)
+```
+
+### 高级：SASL 认证
+
+```go
+b := kafka.NewBroker(
+    broker.WithAddress("127.0.0.1:9092"),
+    kafka.WithScramMechanism(kafka.ScramAlgorithmSHA256, "user", "pass"),
+    broker.WithCodec("json"),
+)
+```
+
+### 高级：批量消费
+
+```go
+sub, _ := b.Subscribe("test-topic", handler, binder,
+    broker.WithSubscribeQueueName("my-group"),
+    kafka.WithSubscribeBatchSize(100),
+    kafka.WithSubscribeBatchInterval(time.Second),
+)
+```
+
+### 高级：自定义负载均衡器
+
+```go
+b.Publish(ctx, "test-topic", broker.NewMessage(msg),
+    kafka.WithMurmur2Balancer(true),
+)
+```
+
+## 配置选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `kafka.WithReaderConfig(cfg)` | 原生 Reader 配置 |
+| `kafka.WithWriterConfig(cfg)` | 原生 Writer 配置 |
+| `kafka.WithEnableOneTopicOneWriter(enable)` | 每个 Topic 使用独立 Writer |
+| `kafka.WithPlainMechanism(user, pass)` | PLAIN SASL 认证 |
+| `kafka.WithScramMechanism(algo, user, pass)` | SCRAM SHA256/SHA512 认证 |
+| `kafka.WithBatchSize(n)` | 发送批次大小（默认 100） |
+| `kafka.WithBatchTimeout(d)` | linger.ms（默认 10ms） |
+| `kafka.WithBatchBytes(n)` | 批次最大字节数（默认 1048576） |
+| `kafka.WithAsync(enable)` | 异步发送（默认 true） |
+| `kafka.WithReadTimeout(d)` | 读取超时（默认 10s） |
+| `kafka.WithWriteTimeout(d)` | 写入超时（默认 10s） |
+| `kafka.WithEnableLogger(enable)` | 启用 Kratos info 日志 |
+| `kafka.WithEnableErrorLogger(enable)` | 启用 Kratos error 日志 |
+| `kafka.WithAllowPublishAutoTopicCreation(enable)` | 允许自动创建 Topic |
+| `kafka.WithCompletion(fn)` | 消息发布完成回调 |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `kafka.WithLeastBytesBalancer()` | LeastBytes 负载均衡 |
+| `kafka.WithRoundRobinBalancer()` | RoundRobin 负载均衡（默认） |
+| `kafka.WithHashBalancer(hasher)` | Hash 负载均衡 |
+| `kafka.WithCrc32Balancer(consistent)` | CRC32 负载均衡 |
+| `kafka.WithMurmur2Balancer(consistent)` | Murmur2 负载均衡 |
+
+### Subscribe 选项
+
+| 选项 | 说明 |
+|------|------|
+| `kafka.WithSubscribeAutoCreateTopic(topic, parts, replicas)` | 订阅时自动创建 Topic |
+| `kafka.WithQueueCapacity(n)` | 内部消息队列容量 |
+| `kafka.WithMinBytes(n)` | fetch.min.bytes |
+| `kafka.WithMaxBytes(n)` | fetch.max.bytes |
+| `kafka.WithMaxWait(d)` | fetch.max.wait.ms |
+| `kafka.WithCommitInterval(d)` | 提交间隔 |
+| `kafka.WithSessionTimeout(d)` | 会话超时 |
+| `kafka.WithRebalanceTimeout(d)` | 重平衡超时 |
+| `kafka.WithStartOffset(offset)` | 起始偏移量 |
+| `kafka.WithSubscribeBatchSize(n)` | 批量消费大小 |
+| `kafka.WithSubscribeBatchInterval(d)` | 批量消费间隔 |
+| `kafka.WithRetries(n)` | 消费重试次数 |
+
 ## 管理工具
 
 - [Offset Explorer](https://www.kafkatool.com/download.html)

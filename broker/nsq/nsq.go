@@ -332,7 +332,7 @@ func (b *nsqBroker) Subscribe(topic string, handler broker.Handler, binder broke
 		}
 
 		if options.AutoAck {
-			if errSub = p.Ack(); err != nil {
+			if errSub = p.Ack(); errSub != nil {
 				LogErrorf("unable to commit msg: %v", errSub)
 			}
 		}

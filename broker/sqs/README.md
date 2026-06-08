@@ -1,26 +1,95 @@
 # SQS
 
+基于 [AWS SDK for Go v2](https://github.com/aws/aws-sdk-go-v2) 实现的 Amazon SQS 消息代理。
+
 Amazon Simple Queue Service (Amazon SQS) 是一项 Web 服务，让您能够访问存储待处理消息的消息队列。借助 Amazon SQS，您能够快速构建可在任何计算机上运行的消息队列应用程序。
 
-Amazon SQS 可以提供可靠、安全并且高度可扩展的托管队列服务，用于存储在计算机之间传输的消息。借助 Amazon SQS，您可以在不同的分布式应用程序组件之间移动数据，同时既不会丢失消息，也不需要各个组件始终处于可用状态。您可以使用与 AWS Key Management Service (KMS) 集成的 Amazon SQS 服务器端加密 (SSE) 在应用程序之间交换敏感数据。
-
-Amazon SQS 可帮助您构建组件相互解耦的分布式应用程序，而且这些应用程序可与 Amazon Elastic Compute Cloud (Amazon EC2) 及其他 AWS 基础设施 Web 服务紧密配合。
+Amazon SQS 可以提供可靠、安全并且高度可扩展的托管队列服务，用于存储在计算机之间传输的消息。借助 Amazon SQS，您可以在不同的分布式应用程序组件之间移动数据，同时既不会丢失消息，也不需要各个组件始终处于可用状态。
 
 ## 队列类型
 
-Amazon SQS 针对不同应用程序要求提供了两种队列类型：
+| 队列类型 | 说明 |
+|----------|------|
+| **标准队列** | 默认队列类型，每秒处理近乎无限数量的事务，至少一次投递，最大努力排序 |
+| **FIFO 队列** | 严格先入先出，消息只传送一次，支持消息组，上限 300 TPS |
 
-### 标准队列
+## 使用方式
 
-Amazon SQS 提供标准队列作为默认队列类型。标准队列使您能够每秒处理近乎无限数量的事务。标准队列可确保每条消息至少被传送一次。但是，由于允许高吞吐量的高度分布式架构，偶尔会有一条消息的某个副本不按顺序传送。标准队列提供最大努力排序，可保证消息大致按其发送的顺序进行传送。
+### 基础：发布/订阅
 
-### FIFO 队列 – 新功能！
+```go
+b := sqs.NewBroker(
+    broker.WithAddress("http://127.0.0.1:9324"),
+    sqs.WithRegion("elasticmq"),
+    sqs.WithEndpoint("http://127.0.0.1:9324"),
+    sqs.WithQueueUrl("http://127.0.0.1:9324/queue/test-queue"),
+    broker.WithCodec("json"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
 
-FIFO 队列是对标准队列的补充。这种队列类型最重要的功能是 FIFO (先进先出) 传送和一次性处理：让消息的发送顺序和接收顺序严格保持一致，且消息只传送一次并保留到用户将其处理和删除；重复的消息不会被引入队列。FIFO 队列还支持消息组，即允许在单个队列中传送多个有序流。FIFO 队列的上限是 300 个事务/秒 (TPS)，但具有标准队列的全部功能。
+// 发布
+b.Publish(ctx, "test-queue", broker.NewMessage(msg))
 
-## Docker部署开发服务器
+// 订阅（长轮询，自动删除消息）
+sub, _ := b.Subscribe("test-queue", handler, binder)
+```
 
-Alpine SQS是第三方提供的开源实现。Alpine SQS 提供 Amazon Simple Queue Service (AWS-SQS) 的容器化 Java 实现。它基于运行 Alpine Linux 和 Oracle Java 8 Server-JRE 的 ElasticMQ。它与AWS的API、CLI以及Amazon Java SDK兼容。这可以加快本地开发速度，而无需承担基础设施成本。
+### 高级：FIFO 队列
+
+```go
+b.Publish(ctx, "my-fifo-queue.fifo", broker.NewMessage(msg),
+    sqs.WithMessageGroupId("order-group-1"),
+    sqs.WithMessageDeduplicationId("order-12345"),
+)
+```
+
+### 高级：延迟投递 + 可见性超时
+
+```go
+// 延迟 60 秒投递
+b.Publish(ctx, "test-queue", broker.NewMessage(msg),
+    sqs.WithDelaySeconds(60),
+)
+
+// 订阅时自定义可见性超时和长轮询参数
+sub, _ := b.Subscribe("test-queue", handler, binder,
+    sqs.WithVisibilityTimeout(60),
+    sqs.WithWaitTimeSeconds(20),
+    sqs.WithMaxMessages(10),
+)
+```
+
+## 配置选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `sqs.WithRegion(region)` | AWS 区域（默认 `us-east-1`） |
+| `sqs.WithEndpoint(url)` | 自定义 Endpoint（用于 ElasticMQ/LocalStack 本地测试） |
+| `sqs.WithQueueUrl(url)` | 默认队列 URL |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `sqs.WithDelaySeconds(seconds)` | 延迟投递秒数（0-900） |
+| `sqs.WithMessageGroupId(groupId)` | FIFO 队列消息组 ID |
+| `sqs.WithMessageDeduplicationId(dedupId)` | FIFO 队列去重 ID |
+
+### Subscribe 选项
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `sqs.WithVisibilityTimeout(seconds)` | 消息可见性超时 | 30 |
+| `sqs.WithWaitTimeSeconds(seconds)` | 长轮询等待时间 | 20 |
+| `sqs.WithMaxMessages(n)` | 每次轮询最大消息数 | 10 |
+
+## Docker 部署开发服务器
+
+Alpine SQS 是第三方提供的开源实现，基于 ElasticMQ，与 AWS API 兼容：
 
 ```shell
 docker pull roribio16/alpine-sqs:latest
@@ -31,6 +100,9 @@ docker run -d \
       -p 9325:9325 \
       roribio16/alpine-sqs:latest
 ```
+
+- SQS API 端口：`9324`
+- 管理界面：`http://localhost:9325`
 
 ## 参考资料
 

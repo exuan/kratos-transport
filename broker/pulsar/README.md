@@ -57,6 +57,91 @@ Bookie 是为消息提供持久化的 Apache BookKeeper 的服务端。
 
 Apache Pulsar 实例集群，由一个或多个实例组成。
 
+## 使用方式
+
+### 基础：发布/订阅
+
+```go
+b := pulsar.NewBroker(
+    broker.WithAddress("pulsar://127.0.0.1:6650"),
+    broker.WithCodec("json"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
+
+// 发布
+b.Publish(ctx, "test-topic", broker.NewMessage(msg),
+    pulsar.WithMessageKey("order-123"),
+)
+
+// 订阅
+sub, _ := b.Subscribe("test-topic", handler, binder,
+    pulsar.WithSubscriptionName("my-subscription"),
+)
+```
+
+### 高级：延迟投递
+
+```go
+b.Publish(ctx, "test-topic", broker.NewMessage(msg),
+    pulsar.WithDeliverAfter(30*time.Minute),
+)
+```
+
+### 高级：TLS 加密连接
+
+```go
+b := pulsar.NewBroker(
+    broker.WithAddress("pulsar+ssl://127.0.0.1:6651"),
+    pulsar.WithTLSConfig("/path/to/ca.crt", "/path/to/client.crt", "/path/to/client.key", false, false),
+)
+```
+
+## 配置选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `pulsar.WithConnectionTimeout(d)` | 连接超时（默认 30s） |
+| `pulsar.WithOperationTimeout(d)` | 操作超时（默认 30s） |
+| `pulsar.WithListenerName(name)` | 监听器名称 |
+| `pulsar.WithMaxConnectionsPerBroker(n)` | 每个 Broker 最大连接数 |
+| `pulsar.WithTLSConfig(ca, cert, key, insecure, validate)` | TLS 加密配置 |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `pulsar.WithMessageKey(key)` | 消息 Key（分区路由） |
+| `pulsar.WithHeaders(h)` | 消息属性 |
+| `pulsar.WithDeliverAfter(d)` | 延迟投递 |
+| `pulsar.WithDeliverAt(t)` | 定时投递 |
+| `pulsar.WithSequenceID(id)` | 序列 ID |
+| `pulsar.WithMessageOrderingKey(key)` | 排序 Key |
+| `pulsar.WithMessageEventTime(t)` | 事件时间 |
+| `pulsar.WithMessageDisableReplication(b)` | 禁止复制 |
+| `pulsar.WithProducerName(name)` | Producer 名称 |
+| `pulsar.WithSendTimeout(d)` | 发送超时 |
+| `pulsar.WithDisableBatching(b)` | 禁用批处理 |
+| `pulsar.WithBatchingMaxMessages(n)` | 批处理最大消息数 |
+| `pulsar.WithBatchingMaxSize(n)` | 批处理最大字节 |
+| `pulsar.WithBatchingMaxPublishDelay(d)` | 批处理最大延迟 |
+
+### Subscribe 选项
+
+| 选项 | 说明 |
+|------|------|
+| `pulsar.WithSubscriptionName(name)` | 订阅名称 |
+| `pulsar.WithSubscriptionProperties(h)` | 订阅属性 |
+| `pulsar.WithConsumerProperties(h)` | 消费者属性 |
+| `pulsar.WithSubscriptionTopicsPattern(p)` | 主题匹配模式 |
+| `pulsar.WithAutoDiscoveryPeriod(d)` | 自动发现周期 |
+| `pulsar.WithNackRedeliveryDelay(d)` | NACK 重投延迟 |
+| `pulsar.WithSubscriptionRetryEnable(b)` | 启用重试 |
+| `pulsar.WithReceiverQueueSize(n)` | 接收队列大小 |
+
 ## Docker部署开发环境
 
 部署单机模式服务：

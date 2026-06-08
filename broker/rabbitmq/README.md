@@ -112,6 +112,94 @@ Exchange有4种类型对应4种不同的路由策略:
 
 指定当前 Exchange（交换机）下，什么样的 Routing Key（路由键）会被下派到当前绑定的 Queue 中。
 
+## 使用方式
+
+### 基础：发布/订阅
+
+```go
+b := rabbitmq.NewBroker(
+    broker.WithAddress("amqp://user:bitnami@127.0.0.1:5672/"),
+    broker.WithCodec("json"),
+    rabbitmq.WithExchangeName("test-exchange"),
+    rabbitmq.WithExchangeType("topic"),
+)
+b.Init()
+b.Connect()
+defer b.Disconnect()
+
+// 发布
+b.Publish(ctx, "test-routing", broker.NewMessage(msg))
+
+// 订阅（持久化队列）
+sub, _ := b.Subscribe("test-routing", handler, binder,
+    broker.WithSubscribeQueueName("test-queue"),
+    rabbitmq.WithDurableQueue(),
+)
+```
+
+### 高级：消息属性
+
+```go
+b.Publish(ctx, "test-routing", broker.NewMessage(msg),
+    rabbitmq.WithDeliveryMode(2),              // 持久化
+    rabbitmq.WithPriority(5),
+    rabbitmq.WithExpiration("60000"),           // TTL 60s
+    rabbitmq.WithMessageId("msg-123"),
+    rabbitmq.WithCorrelationID("corr-456"),
+)
+```
+
+### 高级：QoS 预取
+
+```go
+b := rabbitmq.NewBroker(
+    broker.WithAddress("amqp://127.0.0.1:5672/"),
+    rabbitmq.WithPrefetchCount(10),
+    rabbitmq.WithPrefetchGlobal(),
+)
+```
+
+## 配置选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `rabbitmq.WithExchangeName(name)` | Exchange 名称 |
+| `rabbitmq.WithExchangeType(kind)` | Exchange 类型（fanout/direct/topic/headers） |
+| `rabbitmq.WithDurableExchange()` | 持久化 Exchange |
+| `rabbitmq.WithPrefetchCount(n)` | 预取数量 |
+| `rabbitmq.WithPrefetchSize(n)` | 预取大小（字节） |
+| `rabbitmq.WithPrefetchGlobal()` | 全局预取 |
+| `rabbitmq.WithExternalAuth()` | 外部认证 |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `rabbitmq.WithDeliveryMode(m)` | 投递模式（1=非持久化, 2=持久化） |
+| `rabbitmq.WithPriority(p)` | 优先级 |
+| `rabbitmq.WithContentType(ct)` | Content-Type |
+| `rabbitmq.WithContentEncoding(ce)` | Content-Encoding |
+| `rabbitmq.WithCorrelationID(id)` | 关联 ID |
+| `rabbitmq.WithReplyTo(addr)` | 回复地址 |
+| `rabbitmq.WithExpiration(ttl)` | 过期时间（ms） |
+| `rabbitmq.WithMessageId(id)` | 消息 ID |
+| `rabbitmq.WithTimestamp(t)` | 时间戳 |
+| `rabbitmq.WithPublishHeaders(h)` | AMQP Headers |
+| `rabbitmq.WithPublishDeclareQueue(...)` | 发布时声明队列 |
+
+### Subscribe 选项
+
+| 选项 | 说明 |
+|------|------|
+| `rabbitmq.WithDurableQueue()` | 持久化队列 |
+| `rabbitmq.WithAutoDeleteQueue()` | 自动删除队列 |
+| `rabbitmq.WithBindArguments(args)` | 绑定参数 |
+| `rabbitmq.WithQueueArguments(args)` | 队列参数（x-message-ttl 等） |
+| `rabbitmq.WithRequeueOnError()` | 处理失败时重新入队 |
+| `rabbitmq.WithAckOnSuccess()` | 处理成功自动 ACK |
+
 ## Docker部署开发环境
 
 ```shell

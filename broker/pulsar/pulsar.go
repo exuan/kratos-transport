@@ -3,6 +3,7 @@ package pulsar
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -305,7 +306,6 @@ func (pb *pulsarBroker) publish(ctx context.Context, topic string, msg *broker.M
 
 			producer, err = pb.client.CreateProducer(pulsarOptions)
 			if err != nil {
-				pb.Unlock()
 				break
 			}
 			if _, err = producer.Send(pb.options.Context, &pulsarMsg); err == nil {
@@ -374,9 +374,12 @@ func (pb *pulsarBroker) Subscribe(topic string, handler broker.Handler, binder b
 		pulsarOptions.ReceiverQueueSize = v
 	}
 
-	c, _ := pb.client.Subscribe(pulsarOptions)
+	c, err := pb.client.Subscribe(pulsarOptions)
+	if err != nil {
+		return nil, fmt.Errorf("create consumer error: %w", err)
+	}
 	if c == nil {
-		return nil, errors.New("create consumer error")
+		return nil, errors.New("create consumer error: consumer is nil")
 	}
 
 	sub := &subscriber{
