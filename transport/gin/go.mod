@@ -14,7 +14,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tx7do/kratos-transport/testing v1.1.2
-	github.com/tx7do/kratos-transport/transport v1.3.3
+	github.com/tx7do/kratos-transport/transport v1.3.4
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.68.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0

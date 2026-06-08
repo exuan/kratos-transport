@@ -15,7 +15,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/gorilla/mux v1.8.1
 	github.com/tx7do/kratos-transport/testing v1.1.2
-	github.com/tx7do/kratos-transport/transport v1.3.3
+	github.com/tx7do/kratos-transport/transport v1.3.4
 )
 
 require (

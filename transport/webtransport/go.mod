@@ -15,7 +15,7 @@ require (
 	github.com/quic-go/quic-go v0.59.0
 	github.com/tx7do/kratos-transport/broker v1.3.3
 	github.com/tx7do/kratos-transport/testing v1.1.2
-	github.com/tx7do/kratos-transport/transport v1.3.3
+	github.com/tx7do/kratos-transport/transport v1.3.4
 )
 
 require (

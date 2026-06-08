@@ -14,7 +14,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/tx7do/go-utils/id v0.0.6
 	github.com/tx7do/kratos-transport/broker v1.3.3
-	github.com/tx7do/kratos-transport/transport v1.3.3
+	github.com/tx7do/kratos-transport/transport v1.3.4
 	github.com/xtaci/kcp-go/v5 v5.6.72
 	golang.org/x/crypto v0.50.0
 )
