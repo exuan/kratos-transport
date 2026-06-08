@@ -8,8 +8,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/exporters/zipkin"
-
 	traceSdk "go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -27,7 +25,7 @@ func NewExporter(exporterName, endpoint string, insecure bool) (traceSdk.SpanExp
 
 	switch exporterName {
 	case ExporterZipkin:
-		return NewZipkinExporter(ctx, endpoint)
+		return nil, errors.New("zipkin exporter is no longer supported, please use otlp-http or otlp-grpc replace it")
 	case ExporterJaeger:
 		return nil, errors.New("jaeger exporter is no longer supported, please use otlp-http or otlp-grpc replace it")
 	case ExporterOtlpHttp:
@@ -39,11 +37,6 @@ func NewExporter(exporterName, endpoint string, insecure bool) (traceSdk.SpanExp
 	case ExporterStdout:
 		return stdouttrace.New()
 	}
-}
-
-// NewZipkinExporter 创建一个zipkin导出器，默认对端地址：http://localhost:9411/api/v2/spans
-func NewZipkinExporter(_ context.Context, endpoint string) (traceSdk.SpanExporter, error) {
-	return zipkin.New(endpoint)
 }
 
 //// NewJaegerExporter 创建一个jaeger导出器，默认对端地址：http://localhost:14268/api/traces
