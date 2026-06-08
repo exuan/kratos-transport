@@ -44,11 +44,11 @@ func (r *rabbitChannel) Close() error {
 	return r.channel.Close()
 }
 
-func (r *rabbitChannel) Publish(ctx context.Context, exchangeName, key string, message amqp.Publishing) error {
+func (r *rabbitChannel) Publish(ctx context.Context, exchangeName, key string, mandatory bool, message amqp.Publishing) error {
 	if r.channel == nil {
 		return errors.New("channel is nil")
 	}
-	return r.channel.PublishWithContext(ctx, exchangeName, key, false, false, message)
+	return r.channel.PublishWithContext(ctx, exchangeName, key, mandatory, false, message)
 }
 
 func (r *rabbitChannel) DeclareExchange(exchangeName, kind string, durable, autoDelete bool) error {
@@ -95,4 +95,28 @@ func (r *rabbitChannel) BindQueue(queueName, key, exchange string, args amqp.Tab
 		false,
 		args,
 	)
+}
+
+// Confirm puts the channel into confirm mode, enabling publisher confirms.
+func (r *rabbitChannel) Confirm() error {
+	if r.channel == nil {
+		return errors.New("channel is nil")
+	}
+	return r.channel.Confirm(false)
+}
+
+// NotifyPublish registers a channel to receive publisher confirmations.
+func (r *rabbitChannel) NotifyPublish(confirm chan amqp.Confirmation) chan amqp.Confirmation {
+	if r.channel == nil {
+		return nil
+	}
+	return r.channel.NotifyPublish(confirm)
+}
+
+// NotifyReturn registers a channel to receive returned messages.
+func (r *rabbitChannel) NotifyReturn(c chan amqp.Return) chan amqp.Return {
+	if r.channel == nil {
+		return nil
+	}
+	return r.channel.NotifyReturn(c)
 }

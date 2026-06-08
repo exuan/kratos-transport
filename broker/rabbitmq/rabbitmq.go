@@ -233,7 +233,12 @@ func (b *rabbitBroker) publish(ctx context.Context, routingKey string, msg *brok
 	var span trace.Span
 	ctx, span = b.startProducerSpan(options.Context, routingKey, &rMsg)
 
-	err := b.conn.Publish(ctx, b.conn.exchange.Name, routingKey, rMsg)
+	var mandatory bool
+	if val, ok := options.Context.Value(mandatoryKey{}).(bool); ok {
+		mandatory = val
+	}
+
+	err := b.conn.Publish(ctx, b.conn.exchange.Name, routingKey, mandatory, rMsg)
 
 	b.finishProducerSpan(ctx, span, routingKey, err)
 

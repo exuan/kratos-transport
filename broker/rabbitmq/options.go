@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	amqp "github.com/rabbitmq/amqp091-go"
+
 	"github.com/tx7do/kratos-transport/broker"
 )
 
@@ -52,6 +54,34 @@ func WithPrefetchGlobal() broker.Option {
 
 func WithExternalAuth() broker.Option {
 	return broker.OptionContextWithValue(externalAuthKey{}, ExternalAuthentication{})
+}
+
+type confirmModeKey struct{}
+type onReturnKey struct{}
+type onConfirmKey struct{}
+
+// ReturnHandler handles messages returned by the broker when they cannot be routed.
+type ReturnHandler func(amqp.Return)
+
+// ConfirmHandler handles publisher confirmations (ack or nack).
+type ConfirmHandler func(amqp.Confirmation)
+
+// WithConfirmMode enables publisher confirms on the publish channel.
+// When enabled, the broker will acknowledge each published message.
+func WithConfirmMode() broker.Option {
+	return broker.OptionContextWithValue(confirmModeKey{}, true)
+}
+
+// WithOnReturn registers a callback for messages returned by the broker.
+// Messages are returned when the mandatory flag is set and no queue is bound to match the routing key.
+func WithOnReturn(handler ReturnHandler) broker.Option {
+	return broker.OptionContextWithValue(onReturnKey{}, handler)
+}
+
+// WithOnConfirm registers a callback for publisher confirmations.
+// Requires WithConfirmMode to be enabled.
+func WithOnConfirm(handler ConfirmHandler) broker.Option {
+	return broker.OptionContextWithValue(onConfirmKey{}, handler)
 }
 
 ///
@@ -120,6 +150,7 @@ type userIDKey struct{}
 type appIDKey struct{}
 type publishHeadersKey struct{}
 type publishDeclareQueueKey struct{}
+type mandatoryKey struct{}
 
 // WithDeliveryMode amqp.Publishing.DeliveryMode
 func WithDeliveryMode(value uint8) broker.PublishOption {
@@ -196,4 +227,11 @@ func WithPublishDeclareQueue(queueName string, durableQueue, autoDelete bool, qu
 		BindArguments:  bindArgs,
 	}
 	return broker.PublishContextWithValue(publishDeclareQueueKey{}, val)
+}
+
+// WithMandatory sets the mandatory flag for publishing.
+// When true, if the message cannot be routed to any queue, the broker will return it
+// (triggering the OnReturn callback if registered).
+func WithMandatory() broker.PublishOption {
+	return broker.PublishContextWithValue(mandatoryKey{}, true)
 }

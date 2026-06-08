@@ -64,6 +64,10 @@ type rabbitConnection struct {
 	exchange Exchange
 	qos      Qos
 
+	confirmMode bool
+	onReturn    ReturnHandler
+	onConfirm   ConfirmHandler
+
 	connected      bool
 	close          chan bool
 	waitConnection chan struct{}
@@ -108,6 +112,16 @@ func (r *rabbitConnection) init() {
 	if val, ok := r.options.Context.Value(prefetchGlobalKey{}).(bool); ok {
 		r.qos.PrefetchGlobal = val
 	}
+
+	if val, ok := r.options.Context.Value(confirmModeKey{}).(bool); ok {
+		r.confirmMode = val
+	}
+	if val, ok := r.options.Context.Value(onReturnKey{}).(ReturnHandler); ok {
+		r.onReturn = val
+	}
+	if val, ok := r.options.Context.Value(onConfirmKey{}).(ConfirmHandler); ok {
+		r.onConfirm = val
+	}
 }
 
 func (r *rabbitConnection) connect(secure bool, config *amqp.Config) error {
@@ -151,45 +165,13 @@ func (r *rabbitConnection) reconnect(secure bool, config *amqp.Config) {
 		notifyClose := make(chan *amqp.Error)
 		r.Connection.NotifyClose(notifyClose)
 
-		chanNotifyClose := make(chan *amqp.Error)
-		channelNotifyReturn := make(chan amqp.Return)
-
-		if r.ExchangeChannel != nil {
-			channel := r.ExchangeChannel.channel
-			channel.NotifyClose(chanNotifyClose)
-
-			channel.NotifyReturn(channelNotifyReturn)
-		}
-
 		select {
-		case result, ok := <-channelNotifyReturn:
-			if !ok {
-				r.Lock()
-				r.connected = false
-				r.waitConnection = make(chan struct{})
-				r.ExchangeChannel = nil
-				r.Unlock()
-				continue
-			}
-			LogErrorf("notify error reason: %s, description: %s", result.ReplyText, result.Exchange)
-		case err := <-chanNotifyClose:
-			LogError(err)
-			r.Lock()
-			r.connected = false
-			r.waitConnection = make(chan struct{})
-			r.Unlock()
 		case err := <-notifyClose:
 			LogError(err)
-
-			select {
-			case errs := <-chanNotifyClose:
-				LogError(errs)
-			case <-time.After(time.Second):
-			}
-
 			r.Lock()
 			r.connected = false
 			r.waitConnection = make(chan struct{})
+			r.ExchangeChannel = nil
 			r.Unlock()
 		case <-r.close:
 			return
@@ -309,13 +291,13 @@ func (r *rabbitConnection) DeclarePublishQueue(queueName, routingKey string, bin
 	return nil
 }
 
-func (r *rabbitConnection) Publish(ctx context.Context, exchangeName, routingKey string, msg amqp.Publishing) error {
+func (r *rabbitConnection) Publish(ctx context.Context, exchangeName, routingKey string, mandatory bool, msg amqp.Publishing) error {
 
 	if err := r.lazyInitPublishChannel(); err != nil {
 		return err
 	}
 
-	return r.ExchangeChannel.Publish(ctx, exchangeName, routingKey, msg)
+	return r.ExchangeChannel.Publish(ctx, exchangeName, routingKey, mandatory, msg)
 }
 
 func (r *rabbitConnection) lazyInitPublishChannel() error {
@@ -328,6 +310,48 @@ func (r *rabbitConnection) lazyInitPublishChannel() error {
 		if err != nil {
 			return err
 		}
+
+		// setup publisher confirms if enabled
+		if r.confirmMode {
+			if err := r.ExchangeChannel.Confirm(); err != nil {
+				return err
+			}
+			confirmChan := make(chan amqp.Confirmation, 64)
+			r.ExchangeChannel.NotifyPublish(confirmChan)
+			go r.handleConfirms(confirmChan)
+		}
+
+		// setup return handler
+		returnChan := make(chan amqp.Return, 64)
+		r.ExchangeChannel.NotifyReturn(returnChan)
+		go r.handleReturns(returnChan)
 	}
 	return nil
+}
+
+// handleConfirms processes publisher confirmations in a background goroutine.
+func (r *rabbitConnection) handleConfirms(confirmChan chan amqp.Confirmation) {
+	for conf := range confirmChan {
+		if r.onConfirm != nil {
+			r.onConfirm(conf)
+		} else {
+			if conf.Ack {
+				LogDebugf("message confirmed, delivery tag: %d", conf.DeliveryTag)
+			} else {
+				LogWarnf("message nacked, delivery tag: %d", conf.DeliveryTag)
+			}
+		}
+	}
+}
+
+// handleReturns processes returned messages in a background goroutine.
+func (r *rabbitConnection) handleReturns(returnChan chan amqp.Return) {
+	for ret := range returnChan {
+		if r.onReturn != nil {
+			r.onReturn(ret)
+		} else {
+			LogErrorf("message returned, reason: %s, exchange: %s, routing key: %s",
+				ret.ReplyText, ret.Exchange, ret.RoutingKey)
+		}
+	}
 }
