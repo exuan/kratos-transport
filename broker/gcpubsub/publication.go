@@ -3,7 +3,7 @@ package gcpubsub
 import (
 	"fmt"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/v2"
 
 	"github.com/tx7do/kratos-transport/broker"
 )

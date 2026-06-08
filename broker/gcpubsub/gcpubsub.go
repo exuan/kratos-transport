@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/v2"
 	"google.golang.org/api/option"
 
 	"github.com/tx7do/kratos-transport/broker"
@@ -166,7 +166,7 @@ func (b *gcpBroker) publish(ctx context.Context, topic string, msg *broker.Messa
 		o(&options)
 	}
 
-	t := client.Topic(topic)
+	t := client.Publisher(topic)
 
 	pubsubMsg := &pubsub.Message{
 		Data: msg.BodyBytes(),
@@ -183,7 +183,6 @@ func (b *gcpBroker) publish(ctx context.Context, topic string, msg *broker.Messa
 	if options.Context != nil {
 		if v, ok := options.Context.Value(publishOrderingKey{}).(string); ok && v != "" {
 			pubsubMsg.OrderingKey = v
-			t.EnableMessageOrdering = true
 		}
 	}
 
@@ -250,8 +249,8 @@ func (b *gcpBroker) receive(ctx context.Context, client *pubsub.Client, subscrip
 	receiveSettings pubsub.ReceiveSettings, handler broker.Handler, binder broker.Binder,
 	options broker.SubscribeOptions, sub *subscriber) {
 
-	subscription := client.Subscription(subscriptionName)
-	subscription.ReceiveSettings = receiveSettings
+	subClient := client.Subscriber(subscriptionName)
+	subClient.ReceiveSettings = receiveSettings
 
 	subCtx, cancel := context.WithCancel(ctx)
 	sub.Lock()
@@ -262,7 +261,7 @@ func (b *gcpBroker) receive(ctx context.Context, client *pubsub.Client, subscrip
 		LogInfof("subscriber stopped, topic: %s, subscription: %s", sub.topic, subscriptionName)
 	}()
 
-	err := subscription.Receive(subCtx, func(receiveCtx context.Context, msg *pubsub.Message) {
+	err := subClient.Receive(subCtx, func(receiveCtx context.Context, msg *pubsub.Message) {
 		var m broker.Message
 
 		// Extract headers from message attributes

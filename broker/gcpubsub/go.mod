@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	cloud.google.com/go/pubsub v1.50.2
+	cloud.google.com/go/pubsub/v2 v2.6.0
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tx7do/kratos-transport/broker v1.3.3
@@ -22,7 +22,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.9.0 // indirect
-	cloud.google.com/go/pubsub/v2 v2.6.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
