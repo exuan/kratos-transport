@@ -16,8 +16,8 @@ const (
 )
 
 const (
-	// https://tools.ietf.org/html/draft-vvv-webtransport-quic-02#section-3.1
-	alpnQuicTransport = "wq-vvv-01"
+	// https://datatracker.ietf.org/doc/html/draft-ietf-webtrans-http3/
+	alpnQuicTransport = "h3"
 
 	// https://tools.ietf.org/html/draft-vvv-webtransport-quic-02#section-3.2
 	maxClientIndicationLength = 65535

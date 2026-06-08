@@ -5,10 +5,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -49,6 +51,8 @@ type Server struct {
 	messageHandlers MessageHandlerMap
 	connectHandler  ConnectHandler
 	codec           encoding.Codec
+
+	sessionCount atomic.Int64
 }
 
 func NewServer(opts ...ServerOption) *Server {
@@ -85,14 +89,15 @@ func (s *Server) init(opts ...ServerOption) {
 	}
 	s.Server.TLSConfig = s.tlsConf
 
-	timeout := s.timeout
-	if timeout == 0 {
-		timeout = 5 * time.Second
+	if s.timeout == 0 {
+		s.timeout = 5 * time.Second
 	}
 
+	// Advertise WebTransport support via HTTP/3 SETTINGS
 	if s.Server.AdditionalSettings == nil {
 		s.Server.AdditionalSettings = make(map[uint64]uint64)
 	}
+	s.Server.AdditionalSettings[settingsEnableWebtransport] = 1
 
 	s.mux.HandleFunc(s.path, s.addHandler)
 	s.Server.Handler = s.mux
@@ -118,7 +123,7 @@ func (s *Server) listenAndEndpoint() error {
 		}
 
 		addr := host + ":" + fmt.Sprint(port)
-		s.endpoint = transport.NewRegistryEndpoint(KindWebtransport, addr)
+		s.endpoint = transport.NewRegistryEndpoint("https", addr)
 	}
 
 	return nil
@@ -132,8 +137,10 @@ func (s *Server) Start(_ context.Context) error {
 	LogInfof("server listening on: %s", s.Addr)
 
 	if err := s.ListenAndServe(); err != nil {
-		LogErrorf("start server failed: %s", err.Error())
-		return err
+		if !errors.Is(err, http.ErrServerClosed) {
+			LogErrorf("start server failed: %s", err.Error())
+			return err
+		}
 	}
 
 	return nil
@@ -219,5 +226,96 @@ func (s *Server) messageHandler(sessionId SessionID, buf []byte) error {
 	return nil
 }
 
+// addHandler handles WebTransport CONNECT requests.
+// It validates the request, hijacks the HTTP/3 stream, and enters a read loop
+// to process incoming messages.
 func (s *Server) addHandler(w http.ResponseWriter, r *http.Request) {
+	// Validate WebTransport CONNECT request
+	if r.Method != http.MethodConnect {
+		http.Error(w, "expected CONNECT request", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.Proto != protocolHeader {
+		http.Error(w, "invalid protocol", http.StatusBadRequest)
+		return
+	}
+
+	// Accept the session by sending 200 OK
+	w.WriteHeader(http.StatusOK)
+	w.(http.Flusher).Flush()
+
+	// Hijack the HTTP/3 stream for bidirectional communication
+	hijacker, ok := w.(http3.HTTPStreamer)
+	if !ok {
+		LogError("response writer does not support HTTPStreamer")
+		http.Error(w, "stream hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+
+	stream := hijacker.HTTPStream()
+
+	// Generate session ID from stream ID
+	sessionId := SessionID(stream.StreamID())
+
+	s.sessionCount.Add(1)
+
+	// Notify connect handler
+	if s.connectHandler != nil {
+		s.connectHandler(sessionId, true)
+	}
+
+	s.refCount.Add(1)
+	go func() {
+		defer s.refCount.Done()
+		defer func() {
+			s.sessionCount.Add(-1)
+			if s.connectHandler != nil {
+				s.connectHandler(sessionId, false)
+			}
+		}()
+
+		s.serveSession(sessionId, stream)
+	}()
+}
+
+// serveSession reads messages from the hijacked stream and dispatches them
+// to the registered message handlers.
+func (s *Server) serveSession(sessionId SessionID, stream *http3.Stream) {
+	buf := make([]byte, 4096)
+
+	for {
+		// Read message length (4 bytes, little-endian uint32)
+		var sizeBuf [4]byte
+		if _, err := io.ReadFull(stream, sizeBuf[:]); err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				LogErrorf("session %d: read size error: %s", sessionId, err)
+			}
+			return
+		}
+
+		// Decode message length
+		msgLen := uint(sizeBuf[0]) | uint(sizeBuf[1])<<8 | uint(sizeBuf[2])<<16 | uint(sizeBuf[3])<<24
+		if msgLen == 0 {
+			continue
+		}
+
+		// Grow buffer if needed
+		if uint(cap(buf)) < msgLen {
+			buf = make([]byte, msgLen)
+		}
+		data := buf[:msgLen]
+
+		if _, err := io.ReadFull(stream, data); err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				LogErrorf("session %d: read data error: %s", sessionId, err)
+			}
+			return
+		}
+
+		// Dispatch to message handler
+		if err := s.messageHandler(sessionId, data); err != nil {
+			LogErrorf("session %d: message handler error: %s", sessionId, err)
+		}
+	}
 }
