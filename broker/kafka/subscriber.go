@@ -262,7 +262,7 @@ func (s *subscriber) processSingleMessage() {
 func (s *subscriber) handleBatchMessage(messages []kafkaGo.Message) {
 	for _, km := range messages {
 		if done := s.handleMessage(km); done {
-			//return true
+			LogErrorf("[batch] handleMessage failed for topic %s partition %d offset %d", km.Topic, km.Partition, km.Offset)
 		}
 	}
 }

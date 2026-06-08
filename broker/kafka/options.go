@@ -87,7 +87,8 @@ func WithScramMechanism(algoName ScramAlgorithm, username, password string) brok
 
 	mechanism, err := scram.Mechanism(algo, username, password)
 	if err != nil {
-		panic(err)
+		LogErrorf("create SCRAM mechanism failed: %v", err)
+		return func(o *broker.Options) {}
 	}
 
 	return broker.OptionContextWithValue(mechanismKey{}, mechanism)

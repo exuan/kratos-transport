@@ -292,6 +292,7 @@ func (b *kafkaBroker) Disconnect() error {
 	if b.writer != nil {
 		b.writer.Close()
 	}
+
 	if b.subscribers != nil {
 		b.subscribers.Clear()
 	}
@@ -421,10 +422,7 @@ func (b *kafkaBroker) publishMultipleWriter(ctx context.Context, topic string, m
 	finish := func() {
 		b.finishProducerSpan(options.Context, span, int32(kMsg.Partition), kMsg.Offset, err)
 	}
-
-	if !b.writerConfig.Async {
-		defer finish()
-	}
+	defer finish()
 
 	err = writer.WriteMessages(options.Context, kMsg)
 	if err != nil {
@@ -456,6 +454,10 @@ func (b *kafkaBroker) publishMultipleWriter(ctx context.Context, topic string, m
 					b.Unlock()
 					break
 				}
+			}
+			// If all retries failed, close the orphaned writer
+			if err != nil {
+				_ = writer.Close()
 			}
 		}
 	}
@@ -513,10 +515,7 @@ func (b *kafkaBroker) publishOneWriter(ctx context.Context, topic string, msg *b
 	finish := func() {
 		b.finishProducerSpan(options.Context, span, int32(kMsg.Partition), kMsg.Offset, err)
 	}
-
-	if !b.writerConfig.Async {
-		defer finish()
-	}
+	defer finish()
 
 	err = b.writer.Writer.WriteMessages(options.Context, kMsg)
 	if err != nil {
@@ -549,6 +548,10 @@ func (b *kafkaBroker) publishOneWriter(ctx context.Context, topic string, msg *b
 					b.Unlock()
 					break
 				}
+			}
+			// If all retries failed, close the orphaned writer
+			if err != nil {
+				_ = newWriter.Close()
 			}
 		}
 	}
