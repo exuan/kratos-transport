@@ -26,6 +26,7 @@ var (
 type Server struct {
 	broker.Broker
 	brokerOpts []broker.Option
+	driverType redis.DriverType
 
 	subscribers    broker.SubscriberMap
 	subscriberOpts transport.SubscribeOptionMap
@@ -49,6 +50,7 @@ func NewServer(opts ...ServerOption) *Server {
 		subscriberOpts: make(transport.SubscribeOptionMap),
 		brokerOpts:     []broker.Option{},
 		started:        atomic.Bool{},
+		driverType:     redis.DriverTypePubSub,
 	}
 
 	srv.init(opts...)
@@ -65,7 +67,7 @@ func (s *Server) init(opts ...ServerOption) {
 		keepalive.WithServiceKind(KindRedis),
 	)
 
-	s.Broker = redis.NewBroker(s.brokerOpts...)
+	s.Broker = redis.NewBroker(s.driverType, s.brokerOpts...)
 }
 
 func (s *Server) Name() string {
