@@ -1,103 +1,84 @@
-# GCP Pub/Sub Broker
+# GCP Pub/Sub
 
-Google Cloud Pub/Sub broker implementation for [go-kratos](https://github.com/go-kratos/kratos).
+## 什么是 GCP Pub/Sub？
+
+Google Cloud Pub/Sub 是一种可扩展、灵活的消息传递服务，支持异步通信，可处理数百万条消息。适用于流式分析、事件驱动架构和无服务器应用。
 
 ## 使用方式
 
-### 创建 Broker
+### 基础：发布/订阅
 
 ```go
-import (
-    gcpubsub "github.com/tx7do/kratos-transport/broker/gcpubsub"
-)
-
 b := gcpubsub.NewBroker(
+    broker.WithCodec("json"),
     gcpubsub.WithProjectID("my-gcp-project"),
-    gcpubsub.WithCredentialsFile("/path/to/service-account-key.json"),
+    gcpubsub.WithCredentialsFile("/path/to/service-account.json"),
 )
-
-if err := b.Connect(); err != nil {
-    log.Fatal(err)
-}
+b.Init()
+b.Connect()
 defer b.Disconnect()
-```
 
-### 发布消息
+// 发布
+b.Publish(ctx, "my-topic", broker.NewMessage(msg))
 
-```go
-msg := &broker.Message{
-    Headers: map[string]string{
-        "source": "my-service",
-    },
-    Body: map[string]any{"key": "value"},
-}
-
-err := b.Publish(context.Background(), "my-topic", msg)
-```
-
-### 订阅消息
-
-```go
-sub, err := b.Subscribe("my-topic",
-    func(ctx context.Context, event broker.Event) error {
-        fmt.Printf("received: %s\n", string(event.Message().BodyBytes()))
-        return nil
-    },
-    nil,
+// 订阅
+b.Subscribe("my-topic", handler, binder,
     gcpubsub.WithSubscriptionName("my-subscription"),
 )
 ```
 
-### 使用 Binder 反序列化
+### 高级：消息排序
 
 ```go
-sub, err := b.Subscribe("my-topic",
-    func(ctx context.Context, event broker.Event) error {
-        body := event.Message().Body.(*MyMessage)
-        fmt.Printf("received: %+v\n", body)
-        return nil
-    },
-    func() any { return &MyMessage{} },
-    gcpubsub.WithSubscriptionName("my-subscription"),
-    broker.DisableAutoAck(),
+b.Publish(ctx, "my-topic", broker.NewMessage(msg),
+    gcpubsub.WithPublishOrderingKey("order-key-1"),
 )
 ```
 
-### 本地开发（使用 Pub/Sub Emulator）
+### 高级：订阅配置
 
 ```go
-b := gcpubsub.NewBroker(
-    gcpubsub.WithProjectID("test-project"),
-    gcpubsub.WithEndpoint("localhost:8085"),
+b.Subscribe("my-topic", handler, binder,
+    gcpubsub.WithSubscriptionName("my-sub"),
+    gcpubsub.WithReceiveSettings(pubsub.ReceiveSettings{
+        MaxOutstandingMessages: 1000,
+        MaxOutstandingBytes:    1e9,
+        NumGoroutines:          10,
+    }),
 )
-```
-
-启动 emulator：
-
-```bash
-gcloud beta emulators pubsub start --project=test-project --host-port=localhost:8085
 ```
 
 ## 配置选项
 
 ### Broker 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithProjectID(id)` | `string` | GCP 项目 ID（**必填**） |
-| `WithCredentialsFile(path)` | `string` | 服务账号密钥 JSON 文件路径 |
-| `WithEndpoint(endpoint)` | `string` | 自定义 Endpoint（用于 Emulator） |
+| 选项 | 说明 |
+|------|------|
+| `gcpubsub.WithProjectID(id)` | GCP 项目 ID（必填） |
+| `gcpubsub.WithCredentialsFile(path)` | 服务账号 JSON 密钥文件路径 |
+| `gcpubsub.WithEndpoint(url)` | 自定义端点（用于模拟器） |
 
 ### Publish 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithPublishTimeout(d)` | `time.Duration` | 发布单条消息的超时时间 |
-| `WithPublishOrderingKey(key)` | `string` | 消息排序键（启用消息排序） |
+| 选项 | 说明 |
+|------|------|
+| `gcpubsub.WithPublishTimeout(d)` | 发布超时时间 |
+| `gcpubsub.WithPublishOrderingKey(key)` | 消息排序键 |
 
 ### Subscribe 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithSubscriptionName(name)` | `string` | Pub/Sub 订阅名称（默认等于 topic） |
-| `WithReceiveSettings(settings)` | `pubsub.ReceiveSettings` | 接收设置（并发、批量大小等） |
+| 选项 | 说明 |
+|------|------|
+| `gcpubsub.WithSubscriptionName(name)` | 订阅名称（默认使用 topic 名称） |
+| `gcpubsub.WithReceiveSettings(s)` | 接收配置（并发数、流控等） |
+
+## Docker 部署开发环境
+
+```shell
+# 使用 Pub/Sub 模拟器
+docker run -d \
+    --name pubsub-emulator \
+    -p 8085:8085 \
+    gcr.io/google.com/cloudsdktool/google-cloud-cli:latest \
+    gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+```

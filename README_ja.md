@@ -81,9 +81,9 @@ graph TB
 | NSQ | リアルタイム分散メッセージングプラットフォーム | [README](./transport/nsq/README.md) |
 | Redis | Redis Stream メッセージ消費 | [README](./transport/redis/README.md) |
 | MQTT | IoT MQTT v3.1.1 / v5.0 プロトコル | [README](./transport/mqtt/README.md) |
-| Azure Service Bus | Azure クラウドメッセージキューサービス | — |
-| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | — |
-| AWS SQS | Amazon Simple Queue Service | — |
+| Azure Service Bus | Azure クラウドメッセージキューサービス | [README](./broker/azuresb/README.md) |
+| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | [README](./broker/gcpubsub/README.md) |
+| AWS SQS | Amazon Simple Queue Service | [README](./broker/sqs/README.md) |
 
 ### RPC / Web フレームワーク拡張
 
@@ -140,9 +140,9 @@ graph TB
 | Redis | Redis Stream メッセージング | [README](./broker/redis/README.md) |
 | RocketMQ | Alibaba 分散メッセージミドルウェア | [README](./broker/rocketmq/README.md) |
 | STOMP | STOMP プロトコルメッセージミドルウェア | [README](./broker/stomp/README.md) |
-| Azure Service Bus | Azure クラウドメッセージキューサービス | — |
-| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | — |
-| AWS SQS | Amazon Simple Queue Service | — |
+| Azure Service Bus | Azure クラウドメッセージキューサービス | [README](./broker/azuresb/README.md) |
+| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | [README](./broker/gcpubsub/README.md) |
+| AWS SQS | Amazon Simple Queue Service | [README](./broker/sqs/README.md) |
 
 ---
 

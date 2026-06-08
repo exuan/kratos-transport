@@ -70,92 +70,92 @@ graph TB
 
 ### 消息队列 Transport Server
 
-| 中间件 | 说明 | 文档 |
-|--------|------|------|
-| RabbitMQ | AMQP 0-9-1 协议，广泛用于企业异步消息 | [README](./transport/rabbitmq/README.md) |
-| Kafka | 高吞吐分布式事件流平台 | [README](./transport/kafka/README.md) |
-| RocketMQ | 阿里云级分布式消息中间件 | [README](./transport/rocketmq/README.md) |
-| ActiveMQ | STOMP 协议接入 ActiveMQ / Apollo | [README](./transport/activemq/README.md) |
-| Pulsar | Apache Pulsar 云原生消息平台 | [README](./transport/pulsar/README.md) |
-| NATS | 轻量高性能消息系统 | [README](./transport/nats/README.md) |
-| NSQ | 实时分布式消息平台 | [README](./transport/nsq/README.md) |
-| Redis | Redis Stream 消息消费 | [README](./transport/redis/README.md) |
-| MQTT | 物联网 MQTT v3.1.1 / v5.0 协议 | [README](./transport/mqtt/README.md) |
-| Azure Service Bus | Azure 云消息队列服务 | — |
-| GCP Pub/Sub | Google Cloud 消息发布/订阅服务 | — |
-| AWS SQS | Amazon Simple Queue Service | — |
+| 中间件               | 说明                           | 文档                                       |
+|-------------------|------------------------------|------------------------------------------|
+| RabbitMQ          | AMQP 0-9-1 协议，广泛用于企业异步消息     | [README](./transport/rabbitmq/README.md) |
+| Kafka             | 高吞吐分布式事件流平台                  | [README](./transport/kafka/README.md)    |
+| RocketMQ          | 阿里云级分布式消息中间件                 | [README](./transport/rocketmq/README.md) |
+| ActiveMQ          | STOMP 协议接入 ActiveMQ / Apollo | [README](./transport/activemq/README.md) |
+| Pulsar            | Apache Pulsar 云原生消息平台        | [README](./transport/pulsar/README.md)   |
+| NATS              | 轻量高性能消息系统                    | [README](./transport/nats/README.md)     |
+| NSQ               | 实时分布式消息平台                    | [README](./transport/nsq/README.md)      |
+| Redis             | Redis Stream 消息消费            | [README](./transport/redis/README.md)    |
+| MQTT              | 物联网 MQTT v3.1.1 / v5.0 协议    | [README](./transport/mqtt/README.md)     |
+| Azure Service Bus | Azure 云消息队列服务                | [README](./broker/azuresb/README.md)     |
+| GCP Pub/Sub       | Google Cloud 消息发布/订阅服务       | [README](./broker/gcpubsub/README.md)    |
+| AWS SQS           | Amazon Simple Queue Service  | [README](./broker/sqs/README.md)         |
 
 ### RPC / Web 框架扩展
 
-| 框架 | 说明 | 文档 |
-|------|------|------|
-| Thrift | Apache Thrift RPC 协议 | [README](./transport/thrift/README.md) |
-| GraphQL | GraphQL 查询语言 | [README](./transport/graphql/README.md) |
-| FastHttp | 高性能 HTTP 框架 fasthttp | [README](./transport/fasthttp/README.md) |
-| Gin | Gin Web 框架 | [README](./transport/gin/README.md) |
-| Go-Zero | go-zero 微服务框架 | [README](./transport/gozero/README.md) |
-| Hertz | 字节跳动 CloudWeGo Hertz HTTP 框架 | [README](./transport/hertz/README.md) |
-| Iris | Iris Web 框架 | [README](./transport/iris/README.md) |
-| tRPC | 腾讯 tRPC 微服务框架 | [README](./transport/trpc/README.md) |
+| 框架       | 说明                           | 文档                                       |
+|----------|------------------------------|------------------------------------------|
+| Thrift   | Apache Thrift RPC 协议         | [README](./transport/thrift/README.md)   |
+| GraphQL  | GraphQL 查询语言                 | [README](./transport/graphql/README.md)  |
+| FastHttp | 高性能 HTTP 框架 fasthttp         | [README](./transport/fasthttp/README.md) |
+| Gin      | Gin Web 框架                   | [README](./transport/gin/README.md)      |
+| Go-Zero  | go-zero 微服务框架                | [README](./transport/gozero/README.md)   |
+| Hertz    | 字节跳动 CloudWeGo Hertz HTTP 框架 | [README](./transport/hertz/README.md)    |
+| Iris     | Iris Web 框架                  | [README](./transport/iris/README.md)     |
+| tRPC     | 腾讯 tRPC 微服务框架                | [README](./transport/trpc/README.md)     |
 
 ### 分布式任务队列
 
-| 框架 | 说明 | 文档 |
-|------|------|------|
-| Asynq | 基于 Redis 的异步任务队列 | [README](./transport/asynq/README.md) |
-| Machinery | 分布式任务处理框架 | [README](./transport/machinery/README.md) |
-| Cron | 定时任务调度 | [README](./transport/cron/README.md) |
-| HPTimer | 高精度定时器 | [README](./transport/hptimer/README.md) |
+| 框架        | 说明               | 文档                                        |
+|-----------|------------------|-------------------------------------------|
+| Asynq     | 基于 Redis 的异步任务队列 | [README](./transport/asynq/README.md)     |
+| Machinery | 分布式任务处理框架        | [README](./transport/machinery/README.md) |
+| Cron      | 定时任务调度           | [README](./transport/cron/README.md)      |
+| HPTimer   | 高精度定时器           | [README](./transport/hptimer/README.md)   |
 
 ### 实时通信协议
 
-| 协议 | 说明 | 文档 |
-|------|------|------|
-| WebSocket | 全双工实时通信 | [README](./transport/websocket/README.md) |
-| HTTP/3 | 基于 QUIC 的下一代 HTTP 协议 | [README](./transport/http3/README.md) |
-| WebTransport | 基于 QUIC 的 Web 传输协议 | [README](./transport/webtransport/README.md) |
-| SSE | Server-Sent Events 服务端推送 | [README](./transport/sse/README.md) |
-| SignalR | ASP.NET SignalR 协议 | [README](./transport/signalr/README.md) |
-| Socket.IO | Socket.IO 实时通信协议 | [README](./transport/socketio/README.md) |
-| MCP | Model Context Protocol (AI Agent 通信) | [README](./transport/mcp/README.md) |
+| 协议           | 说明                                   | 文档                                           |
+|--------------|--------------------------------------|----------------------------------------------|
+| WebSocket    | 全双工实时通信                              | [README](./transport/websocket/README.md)    |
+| HTTP/3       | 基于 QUIC 的下一代 HTTP 协议                 | [README](./transport/http3/README.md)        |
+| WebTransport | 基于 QUIC 的 Web 传输协议                   | [README](./transport/webtransport/README.md) |
+| SSE          | Server-Sent Events 服务端推送             | [README](./transport/sse/README.md)          |
+| SignalR      | ASP.NET SignalR 协议                   | [README](./transport/signalr/README.md)      |
+| Socket.IO    | Socket.IO 实时通信协议                     | [README](./transport/socketio/README.md)     |
+| MCP          | Model Context Protocol (AI Agent 通信) | [README](./transport/mcp/README.md)          |
 
 ### 网络协议
 
-| 协议 | 说明 | 文档 |
-|------|------|------|
-| KCP | 可靠 UDP 协议 | [README](./transport/kcp/README.md) |
-| WebRTC | 点对点实时通信 | [README](./transport/webrtc/README.md) |
-| TCP | 原始 TCP 长连接 | [README](./transport/tcp/README.md) |
+| 协议     | 说明         | 文档                                     |
+|--------|------------|----------------------------------------|
+| KCP    | 可靠 UDP 协议  | [README](./transport/kcp/README.md)    |
+| WebRTC | 点对点实时通信    | [README](./transport/webrtc/README.md) |
+| TCP    | 原始 TCP 长连接 | [README](./transport/tcp/README.md)    |
 
 ### Broker 消息代理
 
-| 中间件 | 说明 | 文档 |
-|--------|------|------|
-| Kafka | 高吞吐事件流 | [README](./broker/kafka/README.md) |
-| MQTT | 物联网消息协议 | [README](./broker/mqtt/README.md) |
-| NATS | 轻量级消息系统 | [README](./broker/nats/README.md) |
-| NSQ | 实时消息平台 | [README](./broker/nsq/README.md) |
-| Pulsar | 云原生消息平台 | [README](./broker/pulsar/README.md) |
-| RabbitMQ | AMQP 消息中间件 | [README](./broker/rabbitmq/README.md) |
-| Redis | Redis Stream 消息 | [README](./broker/redis/README.md) |
-| RocketMQ | 阿里分布式消息中间件 | [README](./broker/rocketmq/README.md) |
-| STOMP | STOMP 协议消息中间件 | [README](./broker/stomp/README.md) |
-| Azure Service Bus | Azure 云消息队列服务 | — |
-| GCP Pub/Sub | Google Cloud 消息发布/订阅服务 | — |
-| AWS SQS | Amazon Simple Queue Service | — |
+| 中间件               | 说明                          | 文档                                    |
+|-------------------|-----------------------------|---------------------------------------|
+| Kafka             | 高吞吐事件流                      | [README](./broker/kafka/README.md)    |
+| MQTT              | 物联网消息协议                     | [README](./broker/mqtt/README.md)     |
+| NATS              | 轻量级消息系统                     | [README](./broker/nats/README.md)     |
+| NSQ               | 实时消息平台                      | [README](./broker/nsq/README.md)      |
+| Pulsar            | 云原生消息平台                     | [README](./broker/pulsar/README.md)   |
+| RabbitMQ          | AMQP 消息中间件                  | [README](./broker/rabbitmq/README.md) |
+| Redis             | Redis Stream 消息             | [README](./broker/redis/README.md)    |
+| RocketMQ          | 阿里分布式消息中间件                  | [README](./broker/rocketmq/README.md) |
+| STOMP             | STOMP 协议消息中间件               | [README](./broker/stomp/README.md)    |
+| Azure Service Bus | Azure 云消息队列服务               | [README](./broker/azuresb/README.md)  |
+| GCP Pub/Sub       | Google Cloud 消息发布/订阅服务      | [README](./broker/gcpubsub/README.md) |
+| AWS SQS           | Amazon Simple Queue Service | [README](./broker/sqs/README.md)      |
 
 ---
 
 ## 技术栈
 
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| 语言 | Go 1.24+ | 高性能编译型语言 |
-| 框架 | go-kratos v2 | B 站开源微服务框架 |
-| 链路追踪 | OpenTelemetry | 统一可观测性标准 |
+| 层级       | 技术                     | 说明            |
+|----------|------------------------|---------------|
+| 语言       | Go 1.24+               | 高性能编译型语言      |
+| 框架       | go-kratos v2           | B 站开源微服务框架    |
+| 链路追踪     | OpenTelemetry          | 统一可观测性标准      |
 | Exporter | OTLP / Jaeger / Zipkin | 多种 Trace 导出后端 |
-| 编解码 | JSON / Protobuf | 灵活的序列化方案 |
-| TLS | crypto/tls | 安全传输层支持 |
+| 编解码      | JSON / Protobuf        | 灵活的序列化方案      |
+| TLS      | crypto/tls             | 安全传输层支持       |
 
 ---
 
@@ -405,13 +405,13 @@ kratos-transport/
 
 ## 示例项目
 
-| 项目 | 说明 |
-|------|------|
-| [kratos-chatroom](https://github.com/tx7do/kratos-chatroom) | WebSocket 实时聊天室 |
-| [kratos-cqrs](https://github.com/tx7do/kratos-cqrs) | CQRS 架构示例（Kafka + MongoDB） |
-| [kratos-realtimemap](https://github.com/tx7do/kratos-realtimemap) | 物联网实时地图（MQTT + WebSocket） |
-| [go-wind-uba](https://github.com/tx7do/go-wind-uba) | 企业级用户行为分析系统 |
-| [go-wind-admin](https://github.com/tx7do/go-wind-admin) | 中后台管理系统脚手架 |
+| 项目                                                                | 说明                         |
+|-------------------------------------------------------------------|----------------------------|
+| [kratos-chatroom](https://github.com/tx7do/kratos-chatroom)       | WebSocket 实时聊天室            |
+| [kratos-cqrs](https://github.com/tx7do/kratos-cqrs)               | CQRS 架构示例（Kafka + MongoDB） |
+| [kratos-realtimemap](https://github.com/tx7do/kratos-realtimemap) | 物联网实时地图（MQTT + WebSocket）  |
+| [go-wind-uba](https://github.com/tx7do/go-wind-uba)               | 企业级用户行为分析系统                |
+| [go-wind-admin](https://github.com/tx7do/go-wind-admin)           | 中后台管理系统脚手架                 |
 
 > 以上项目均收录于 [Kratos 官方 Examples](https://github.com/go-kratos/examples)。
 

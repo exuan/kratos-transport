@@ -1,138 +1,84 @@
-# Azure Service Bus Broker
+# Azure Service Bus
 
-Azure Service Bus broker implementation for [go-kratos](https://github.com/go-kratos/kratos).
+## 什么是 Azure Service Bus？
+
+Microsoft Azure Service Bus 是一个企业级消息代理，支持队列、主题/订阅模型，提供消息会话、事务、重复消息检测等高级特性。
 
 ## 使用方式
 
-### 创建 Broker
+### 基础：发布/订阅
 
 ```go
-import (
-    azuresb "github.com/tx7do/kratos-transport/broker/azuresb"
-)
-
 b := azuresb.NewBroker(
-    azuresb.WithConnectionString("Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>"),
+    broker.WithCodec("json"),
+    azuresb.WithConnectionString(
+        "Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>",
+    ),
 )
-
-if err := b.Connect(); err != nil {
-    log.Fatal(err)
-}
+b.Init()
+b.Connect()
 defer b.Disconnect()
-```
 
-### 发布消息（Queue）
+// 发布到队列
+b.Publish(ctx, "my-queue", broker.NewMessage(msg))
 
-```go
-msg := &broker.Message{
-    Headers: map[string]string{
-        "source": "my-service",
-    },
-    Body: map[string]any{"key": "value"},
-}
+// 订阅队列
+b.Subscribe("my-queue", handler, binder)
 
-err := b.Publish(context.Background(), "my-queue", msg)
-```
-
-### 发布消息（Topic）
-
-```go
-err := b.Publish(context.Background(), "my-topic", msg)
-```
-
-### 订阅 Queue
-
-```go
-sub, err := b.Subscribe("my-queue",
-    func(ctx context.Context, event broker.Event) error {
-        fmt.Printf("received: %s\n", string(event.Message().BodyBytes()))
-        return nil
-    },
-    nil,
-)
-```
-
-### 订阅 Topic（需指定 Subscription）
-
-```go
-sub, err := b.Subscribe("my-topic",
-    func(ctx context.Context, event broker.Event) error {
-        fmt.Printf("received: %s\n", string(event.Message().BodyBytes()))
-        return nil
-    },
-    nil,
+// 订阅主题（需指定 subscription 名称）
+b.Subscribe("my-topic", handler, binder,
     azuresb.WithSubscriptionName("my-subscription"),
 )
 ```
 
-### 使用 Binder 反序列化
+### 高级：消息属性
 
 ```go
-sub, err := b.Subscribe("my-queue",
-    func(ctx context.Context, event broker.Event) error {
-        body := event.Message().Body.(*MyMessage)
-        fmt.Printf("received: %+v\n", body)
-        return nil
-    },
-    func() any { return &MyMessage{} },
-    broker.DisableAutoAck(),
+b.Publish(ctx, "my-queue", broker.NewMessage(msg),
+    azuresb.WithPublishContentType("application/json"),
+    azuresb.WithPublishSessionID("session-1"),
+    azuresb.WithPublishMessageID("msg-123"),
 )
 ```
 
-### 管理操作：创建 Queue/Topic/Subscription
+### 高级：资源管理
 
 ```go
-// 创建 Queue
-err := b.(*azuresb.azureBroker).EnsureQueue(ctx, "my-queue", nil)
-
-// 创建 Topic
-err := b.(*azuresb.azureBroker).EnsureTopic(ctx, "my-topic", nil)
-
-// 创建 Subscription
-err := b.(*azuresb.azureBroker).EnsureSubscription(ctx, "my-topic", "my-subscription", nil)
+// 在启动前确保 Queue/Topic/Subscription 存在
+b.EnsureQueue(ctx, "my-queue", nil)
+b.EnsureTopic(ctx, "my-topic", nil)
+b.EnsureSubscription(ctx, "my-topic", "my-sub", nil)
 ```
-
-> 注：管理操作是 AzureBroker 的扩展方法，需要类型断言。如果实体已存在（409），不会报错。
-
-### 本地开发（使用 Azurite Emulator）
-
-```bash
-# 启动 Azurite
-azurite --service-bus --sb-host 127.0.0.1 --sb-port 5672
-```
-
-```go
-b := azuresb.NewBroker(
-    azuresb.WithConnectionString("Endpoint=sb://127.0.0.1;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true"),
-)
-```
-
-## Azure Service Bus 实体模型
-
-| 实体 | 说明 | Subscribe 行为 |
-|------|------|----------------|
-| **Queue** | 点对点，消息由单个消费者处理 | `Subscribe("queue-name", handler, binder)` |
-| **Topic + Subscription** | 发布/订阅，每条消息投递到所有订阅 | `Subscribe("topic-name", handler, binder, WithSubscriptionName("sub-name"))` |
 
 ## 配置选项
 
 ### Broker 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithConnectionString(connStr)` | `string` | 连接字符串（**必填**） |
+| 选项 | 说明 |
+|------|------|
+| `azuresb.WithConnectionString(connStr)` | Azure Service Bus 连接字符串（必填） |
 
 ### Publish 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithPublishContentType(ct)` | `string` | 消息 Content-Type |
-| `WithPublishSessionID(id)` | `string` | 会话 ID（需启用 Session） |
-| `WithPublishMessageID(id)` | `string` | 自定义消息 ID |
+| 选项 | 说明 |
+|------|------|
+| `azuresb.WithPublishContentType(ct)` | 消息 Content-Type |
+| `azuresb.WithPublishSessionID(id)` | 会话 ID（需启用 Session 的 Queue/Topic） |
+| `azuresb.WithPublishMessageID(id)` | 自定义消息 ID |
 
 ### Subscribe 选项
 
-| 选项 | 类型 | 说明 |
-|------|------|------|
-| `WithSubscriptionName(name)` | `string` | Topic 的 Subscription 名称 |
-| `WithReceiveMode(mode)` | `azservicebus.ReceiveMode` | 接收模式（默认 PeekLock） |
+| 选项 | 说明 |
+|------|------|
+| `azuresb.WithSubscriptionName(name)` | 主题订阅名称（订阅 Topic 时必填） |
+| `azuresb.WithReceiveMode(mode)` | 接收模式（`PeekLock` 或 `ReceiveAndDelete`） |
+
+## Docker 部署开发环境
+
+```shell
+docker run -d \
+    --name azuresb-emulator \
+    -p 5672:5672 \
+    -e ACCEPT_EULA=Y \
+    mcr.microsoft.com/azure-messaging-servicebus-emulator:latest
+```
