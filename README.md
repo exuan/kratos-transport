@@ -25,12 +25,13 @@
 
 ## 项目亮点
 
-- **30+ 传输协议与消息中间件适配**：RabbitMQ、Kafka、RocketMQ、Pulsar、NATS、NSQ、MQTT、Redis Stream、WebSocket、HTTP/3、WebTransport、SSE、SignalR、Socket.IO、MCP、KCP、WebRTC…… 一站式覆盖主流消息队列、RPC 框架与实时通信协议
+- **30+ 传输协议与消息中间件适配**：RabbitMQ、Kafka、RocketMQ、Pulsar、NATS、NSQ、MQTT、Redis Stream、Azure Service Bus、GCP Pub/Sub、AWS SQS、WebSocket、HTTP/3、WebTransport、SSE、SignalR、Socket.IO、MCP、KCP、WebRTC…… 一站式覆盖主流消息队列、云消息服务、RPC 框架与实时通信协议
 - **双模式接入**：`transport.Server` 实现可直接注册到 Kratos 服务生命周期；独立 `broker.Broker` 接口支持纯消息代理场景，按需选用
 - **泛型类型安全**：基于 Go 1.18+ 泛型提供 `TypedHandler[T]`、`Subscribe[T]`、`RegisterSubscriber[S, T]` 等类型安全 API，告别 `interface{}` 运行时恐慌
 - **统一消息抽象**：`broker.Message` 统一封装 Headers / Body / Metadata / Partition / Offset，屏蔽底层协议差异
 - **可观测性就绪**：内置 OpenTelemetry 链路追踪集成，支持 OTLP gRPC/HTTP、Jaeger、Zipkin 等主流 Exporter，发布 / 订阅全链路 Trace
 - **中间件链**：Publish / Subscribe 双向中间件机制，可灵活注入日志、指标、链路追踪、限流等横切关注点
+- **高可靠性消息投递**：RabbitMQ 支持 Publisher Confirms（发布确认）、Publisher Returns（消息退回）、多 Exchange 路由，确保消息不丢失
 - **模块化按需引入**：每个 transport / broker 实现独立 Go Module，只引入你需要的依赖，避免依赖膨胀
 
 ---
@@ -41,14 +42,14 @@
 graph TB
     App["Kratos Application<br/>kratos.New()"]
     subgraph Transport["transport.Server 扩展层"]
-        MQ["消息队列 Server<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ"]
+        MQ["消息队列 Server<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ<br/>Azure SB · GCP Pub/Sub · SQS"]
         RPC["RPC / Web 扩展<br/>Thrift · GraphQL · FastHttp<br/>Gin · Go-Zero · Hertz · Iris"]
         RT["实时通信 Server<br/>WebSocket · HTTP/3 · WebTransport<br/>SSE · SignalR · Socket.IO · MCP"]
         NET["网络协议 Server<br/>KCP · WebRTC · TCP"]
         TASK["分布式任务队列<br/>Asynq · Machinery · Cron"]
     end
     subgraph Broker["broker.Broker 消息代理层"]
-        BK["Broker 实现<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP"]
+        BK["Broker 实现<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP<br/>Azure SB · GCP Pub/Sub · SQS"]
     end
     subgraph Core["核心抽象层"]
         BI["Broker Interface<br/>Publish · Subscribe · Request"]
@@ -80,6 +81,9 @@ graph TB
 | NSQ | 实时分布式消息平台 | [README](./transport/nsq/README.md) |
 | Redis | Redis Stream 消息消费 | [README](./transport/redis/README.md) |
 | MQTT | 物联网 MQTT v3.1.1 / v5.0 协议 | [README](./transport/mqtt/README.md) |
+| Azure Service Bus | Azure 云消息队列服务 | — |
+| GCP Pub/Sub | Google Cloud 消息发布/订阅服务 | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ### RPC / Web 框架扩展
 
@@ -136,6 +140,9 @@ graph TB
 | Redis | Redis Stream 消息 | [README](./broker/redis/README.md) |
 | RocketMQ | 阿里分布式消息中间件 | [README](./broker/rocketmq/README.md) |
 | STOMP | STOMP 协议消息中间件 | [README](./broker/stomp/README.md) |
+| Azure Service Bus | Azure 云消息队列服务 | — |
+| GCP Pub/Sub | Google Cloud 消息发布/订阅服务 | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ---
 
@@ -331,6 +338,9 @@ kratos-transport/
 │   ├── rabbitmq/               # RabbitMQ Broker
 │   ├── redis/                  # Redis Broker
 │   ├── rocketmq/               # RocketMQ Broker
+│   ├── azuresb/                # Azure Service Bus Broker
+│   ├── gcpubsub/               # GCP Pub/Sub Broker
+│   ├── sqs/                    # AWS SQS Broker
 │   ├── stomp/                  # STOMP Broker
 │   ├── broker.go               # Broker 接口定义
 │   ├── message.go              # 统一消息模型
@@ -341,8 +351,10 @@ kratos-transport/
 ├── transport/                  # Transport Server 扩展
 │   ├── activemq/               # ActiveMQ Transport
 │   ├── asynq/                  # Asynq 异步任务队列
+│   ├── azuresb/               # Azure Service Bus Transport
 │   ├── cron/                   # 定时任务调度
 │   ├── fasthttp/               # FastHttp Transport
+│   ├── gcpubsub/               # GCP Pub/Sub Transport
 │   ├── gin/                    # Gin Transport
 │   ├── gozero/                 # Go-Zero Transport
 │   ├── graphql/                # GraphQL Transport
@@ -364,6 +376,7 @@ kratos-transport/
 │   ├── rocketmq/               # RocketMQ Transport
 │   ├── signalr/                # SignalR Transport
 │   ├── socketio/               # Socket.IO Transport
+│   ├── sqs/                    # AWS SQS Transport
 │   ├── sse/                    # SSE Transport
 │   ├── tcp/                    # TCP Transport
 │   ├── thrift/                 # Thrift RPC Transport

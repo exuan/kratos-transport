@@ -25,12 +25,13 @@
 
 ## Highlights
 
-- **30+ Transport Protocol & Message Middleware Adapters**: RabbitMQ, Kafka, RocketMQ, Pulsar, NATS, NSQ, MQTT, Redis Stream, WebSocket, HTTP/3, WebTransport, SSE, SignalR, Socket.IO, MCP, KCP, WebRTC... One-stop coverage of mainstream message queues, RPC frameworks, and real-time communication protocols
+- **30+ Transport Protocol & Message Middleware Adapters**: RabbitMQ, Kafka, RocketMQ, Pulsar, NATS, NSQ, MQTT, Redis Stream, Azure Service Bus, GCP Pub/Sub, AWS SQS, WebSocket, HTTP/3, WebTransport, SSE, SignalR, Socket.IO, MCP, KCP, WebRTC... One-stop coverage of mainstream message queues, cloud messaging services, RPC frameworks, and real-time communication protocols
 - **Dual-Mode Integration**: `transport.Server` implementations register directly into the Kratos service lifecycle; standalone `broker.Broker` interface supports pure message proxy scenarios — use as needed
 - **Generic Type Safety**: Leverages Go 1.18+ generics to provide `TypedHandler[T]`, `Subscribe[T]`, `RegisterSubscriber[S, T]` and other type-safe APIs — say goodbye to `interface{}` runtime panics
 - **Unified Message Abstraction**: `broker.Message` uniformly encapsulates Headers / Body / Metadata / Partition / Offset, shielding underlying protocol differences
 - **Observability Ready**: Built-in OpenTelemetry distributed tracing integration, supporting OTLP gRPC/HTTP, Jaeger, Zipkin and other mainstream exporters — full-link tracing for publish/subscribe
 - **Middleware Chain**: Bidirectional Publish / Subscribe middleware mechanism for flexible injection of cross-cutting concerns such as logging, metrics, tracing, and rate limiting
+- **High-Reliability Message Delivery**: RabbitMQ supports Publisher Confirms, Publisher Returns, and multi-Exchange routing to ensure no message loss
 - **Modular On-Demand Import**: Each transport / broker implementation is an independent Go Module — only import the dependencies you need, avoid dependency bloat
 
 ---
@@ -41,14 +42,14 @@
 graph TB
     App["Kratos Application<br/>kratos.New()"]
     subgraph Transport["transport.Server Extension Layer"]
-        MQ["Message Queue Server<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ"]
+        MQ["Message Queue Server<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ<br/>Azure SB · GCP Pub/Sub · SQS"]
         RPC["RPC / Web Extensions<br/>Thrift · GraphQL · FastHttp<br/>Gin · Go-Zero · Hertz · Iris"]
         RT["Real-Time Communication Server<br/>WebSocket · HTTP/3 · WebTransport<br/>SSE · SignalR · Socket.IO · MCP"]
         NET["Network Protocol Server<br/>KCP · WebRTC · TCP"]
         TASK["Distributed Task Queue<br/>Asynq · Machinery · Cron"]
     end
     subgraph Broker["broker.Broker Message Proxy Layer"]
-        BK["Broker Implementations<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP"]
+        BK["Broker Implementations<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP<br/>Azure SB · GCP Pub/Sub · SQS"]
     end
     subgraph Core["Core Abstraction Layer"]
         BI["Broker Interface<br/>Publish · Subscribe · Request"]
@@ -80,6 +81,9 @@ graph TB
 | NSQ | Real-time distributed messaging platform | [README](./transport/nsq/README.md) |
 | Redis | Redis Stream message consumption | [README](./transport/redis/README.md) |
 | MQTT | IoT MQTT v3.1.1 / v5.0 protocol | [README](./transport/mqtt/README.md) |
+| Azure Service Bus | Azure cloud messaging queue service | — |
+| GCP Pub/Sub | Google Cloud publish/subscribe messaging service | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ### RPC / Web Framework Extensions
 
@@ -136,6 +140,9 @@ graph TB
 | Redis | Redis Stream messaging | [README](./broker/redis/README.md) |
 | RocketMQ | Alibaba distributed message middleware | [README](./broker/rocketmq/README.md) |
 | STOMP | STOMP protocol message middleware | [README](./broker/stomp/README.md) |
+| Azure Service Bus | Azure cloud messaging queue service | — |
+| GCP Pub/Sub | Google Cloud publish/subscribe messaging service | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ---
 
@@ -331,6 +338,9 @@ kratos-transport/
 │   ├── rabbitmq/               # RabbitMQ Broker
 │   ├── redis/                  # Redis Broker
 │   ├── rocketmq/               # RocketMQ Broker
+│   ├── azuresb/                # Azure Service Bus Broker
+│   ├── gcpubsub/               # GCP Pub/Sub Broker
+│   ├── sqs/                    # AWS SQS Broker
 │   ├── stomp/                  # STOMP Broker
 │   ├── broker.go               # Broker interface definition
 │   ├── message.go              # Unified message model
@@ -341,8 +351,10 @@ kratos-transport/
 ├── transport/                  # Transport Server extensions
 │   ├── activemq/               # ActiveMQ Transport
 │   ├── asynq/                  # Asynq async task queue
+│   ├── azuresb/               # Azure Service Bus Transport
 │   ├── cron/                   # Scheduled task dispatching
 │   ├── fasthttp/               # FastHttp Transport
+│   ├── gcpubsub/               # GCP Pub/Sub Transport
 │   ├── gin/                    # Gin Transport
 │   ├── gozero/                 # Go-Zero Transport
 │   ├── graphql/                # GraphQL Transport
@@ -364,6 +376,7 @@ kratos-transport/
 │   ├── rocketmq/               # RocketMQ Transport
 │   ├── signalr/                # SignalR Transport
 │   ├── socketio/               # Socket.IO Transport
+│   ├── sqs/                    # AWS SQS Transport
 │   ├── sse/                    # SSE Transport
 │   ├── tcp/                    # TCP Transport
 │   ├── thrift/                 # Thrift RPC Transport

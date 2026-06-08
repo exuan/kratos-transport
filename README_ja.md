@@ -25,12 +25,13 @@
 
 ## プロジェクトの特徴
 
-- **30+ のトランスポートプロトコル・メッセージミドルウェアアダプタ**：RabbitMQ、Kafka、RocketMQ、Pulsar、NATS、NSQ、MQTT、Redis Stream、WebSocket、HTTP/3、WebTransport、SSE、SignalR、Socket.IO、MCP、KCP、WebRTC... 主要なメッセージキュー、RPCフレームワーク、リアルタイム通信プロトコルをワンストップでカバー
+- **30+ のトランスポートプロトコル・メッセージミドルウェアアダプタ**：RabbitMQ、Kafka、RocketMQ、Pulsar、NATS、NSQ、MQTT、Redis Stream、Azure Service Bus、GCP Pub/Sub、AWS SQS、WebSocket、HTTP/3、WebTransport、SSE、SignalR、Socket.IO、MCP、KCP、WebRTC... 主要なメッセージキュー、クラウドメッセージングサービス、RPCフレームワーク、リアルタイム通信プロトコルをワンストップでカバー
 - **デュアルモード統合**：`transport.Server` 実装は Kratos サービスライフサイクルに直接登録可能、スタンドアロンの `broker.Broker` インターフェースはピュアメッセージプロキシシナリオをサポート — 必要に応じて選択可能
 - **ジェネリクス型安全性**：Go 1.18+ のジェネリクスを活用し、`TypedHandler[T]`、`Subscribe[T]`、`RegisterSubscriber[S, T]` などの型安全な API を提供 — `interface{}` のランタイムパニックにさよなら
 - **統一メッセージ抽象化**：`broker.Message` が Headers / Body / Metadata / Partition / Offset を統一的にカプセル化し、基盤プロトコルの差異を吸収
 - **オブザーバビリティ対応**：OpenTelemetry 分散トレーシング統合を内蔵、OTLP gRPC/HTTP、Jaeger、Zipkin などの主要エクスポーターをサポート — パブリッシュ/サブスクライブのフルリンクトレース
 - **ミドルウェアチェーン**：パブリッシュ/サブスクライブ双方向ミドルウェア機構により、ロギング、メトリクス、トレーシング、レートリミットなどの横断的関心事を柔軟に注入
+- **高信頼メッセージ配信**：RabbitMQ は Publisher Confirms（パブリッシュ確認）、Publisher Returns（メッセージ返却）、マルチ Exchange ルーティングをサポートし、メッセージの損失を防止
 - **モジュール式オンデマンドインポート**：各 transport / broker 実装は独立した Go Module — 必要な依存関係のみをインポートし、依存関係の肥大化を回避
 
 ---
@@ -41,14 +42,14 @@
 graph TB
     App["Kratos Application<br/>kratos.New()"]
     subgraph Transport["transport.Server 拡張層"]
-        MQ["メッセージキューサーバー<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ"]
+        MQ["メッセージキューサーバー<br/>Kafka · RabbitMQ · RocketMQ · Pulsar<br/>NATS · NSQ · MQTT · Redis · ActiveMQ<br/>Azure SB · GCP Pub/Sub · SQS"]
         RPC["RPC / Web 拡張<br/>Thrift · GraphQL · FastHttp<br/>Gin · Go-Zero · Hertz · Iris"]
         RT["リアルタイム通信サーバー<br/>WebSocket · HTTP/3 · WebTransport<br/>SSE · SignalR · Socket.IO · MCP"]
         NET["ネットワークプロトコルサーバー<br/>KCP · WebRTC · TCP"]
         TASK["分散タスクキュー<br/>Asynq · Machinery · Cron"]
     end
     subgraph Broker["broker.Broker メッセージプロキシ層"]
-        BK["Broker 実装<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP"]
+        BK["Broker 実装<br/>Kafka · MQTT · NATS · NSQ · Pulsar<br/>RabbitMQ · Redis · RocketMQ · STOMP<br/>Azure SB · GCP Pub/Sub · SQS"]
     end
     subgraph Core["コア抽象化層"]
         BI["Broker Interface<br/>Publish · Subscribe · Request"]
@@ -80,6 +81,9 @@ graph TB
 | NSQ | リアルタイム分散メッセージングプラットフォーム | [README](./transport/nsq/README.md) |
 | Redis | Redis Stream メッセージ消費 | [README](./transport/redis/README.md) |
 | MQTT | IoT MQTT v3.1.1 / v5.0 プロトコル | [README](./transport/mqtt/README.md) |
+| Azure Service Bus | Azure クラウドメッセージキューサービス | — |
+| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ### RPC / Web フレームワーク拡張
 
@@ -136,6 +140,9 @@ graph TB
 | Redis | Redis Stream メッセージング | [README](./broker/redis/README.md) |
 | RocketMQ | Alibaba 分散メッセージミドルウェア | [README](./broker/rocketmq/README.md) |
 | STOMP | STOMP プロトコルメッセージミドルウェア | [README](./broker/stomp/README.md) |
+| Azure Service Bus | Azure クラウドメッセージキューサービス | — |
+| GCP Pub/Sub | Google Cloud パブリッシュ/サブスクライブメッセージングサービス | — |
+| AWS SQS | Amazon Simple Queue Service | — |
 
 ---
 
@@ -331,6 +338,9 @@ kratos-transport/
 │   ├── rabbitmq/               # RabbitMQ Broker
 │   ├── redis/                  # Redis Broker
 │   ├── rocketmq/               # RocketMQ Broker
+│   ├── azuresb/                # Azure Service Bus Broker
+│   ├── gcpubsub/               # GCP Pub/Sub Broker
+│   ├── sqs/                    # AWS SQS Broker
 │   ├── stomp/                  # STOMP Broker
 │   ├── broker.go               # Broker インターフェース定義
 │   ├── message.go              # 統一メッセージモデル
@@ -341,8 +351,10 @@ kratos-transport/
 ├── transport/                  # Transport Server 拡張
 │   ├── activemq/               # ActiveMQ Transport
 │   ├── asynq/                  # Asynq 非同期タスクキュー
+│   ├── azuresb/               # Azure Service Bus Transport
 │   ├── cron/                   # 定時タスクスケジューリング
 │   ├── fasthttp/               # FastHttp Transport
+│   ├── gcpubsub/               # GCP Pub/Sub Transport
 │   ├── gin/                    # Gin Transport
 │   ├── gozero/                 # Go-Zero Transport
 │   ├── graphql/                # GraphQL Transport
@@ -364,6 +376,7 @@ kratos-transport/
 │   ├── rocketmq/               # RocketMQ Transport
 │   ├── signalr/                # SignalR Transport
 │   ├── socketio/               # Socket.IO Transport
+│   ├── sqs/                    # AWS SQS Transport
 │   ├── sse/                    # SSE Transport
 │   ├── tcp/                    # TCP Transport
 │   ├── thrift/                 # Thrift RPC Transport
