@@ -15,7 +15,6 @@ type subscriber struct {
 	b *redisBroker
 
 	topic  string
-	done   chan error
 	closed bool
 
 	handler broker.Handler
@@ -74,59 +73,153 @@ func (s *subscriber) ping() error {
 }
 
 func (s *subscriber) recv() {
-	defer func(conn *redis.PubSubConn) {
-		err := conn.Close()
-		if err != nil {
-			LogError(" close pubsub connection error: ", err)
+	reconnectDelay := 1 * time.Second
+	maxReconnectDelay := 30 * time.Second
+
+	for {
+		if s.IsClosed() {
+			return
 		}
-	}(s.conn)
 
-	s.done = make(chan error, 1)
+		// 确保有连接
+		s.RLock()
+		hasConn := s.conn != nil
+		s.RUnlock()
 
+		if !hasConn {
+			if !s.reconnect() {
+				LogErrorf("reconnect failed, retrying in %v...", reconnectDelay)
+				select {
+				case <-time.After(reconnectDelay):
+				case <-s.options.Context.Done():
+					return
+				}
+				if reconnectDelay < maxReconnectDelay {
+					reconnectDelay *= 2
+				}
+				continue
+			}
+			reconnectDelay = 1 * time.Second
+		}
+
+		// 运行接收循环
+		err := s.receiveLoop()
+
+		// 关闭当前连接
+		s.Lock()
+		if s.conn != nil {
+			_ = s.conn.Close()
+			s.conn = nil
+		}
+		s.Unlock()
+
+		if err == nil || s.IsClosed() {
+			return
+		}
+
+		LogErrorf("recv error: %s, reconnecting in %v...", err.Error(), reconnectDelay)
+
+		select {
+		case <-time.After(reconnectDelay):
+		case <-s.options.Context.Done():
+			return
+		}
+
+		if reconnectDelay < maxReconnectDelay {
+			reconnectDelay *= 2
+		}
+	}
+}
+
+func (s *subscriber) receiveLoop() error {
+	stopPing := make(chan struct{})
+	defer close(stopPing)
+
+	pingErr := make(chan error, 1)
 	ticker := time.NewTicker(DefaultHealthCheckPeriod)
 	defer ticker.Stop()
 
+	// 健康检查协程
 	go func() {
 		for {
 			select {
+			case <-stopPing:
+				return
 			case <-ticker.C:
-				if err := s.ping(); err != nil {
-					s.done <- err
+				s.RLock()
+				conn := s.conn
+				s.RUnlock()
+				if conn == nil {
+					return
+				}
+				if err := conn.Ping(""); err != nil {
+					pingErr <- err
 					return
 				}
 			case <-s.options.Context.Done():
-				s.done <- nil
+				pingErr <- nil
 				return
 			}
 		}
 	}()
 
-	_ = s.ping()
-
 	for {
-		switch x := s.conn.Receive().(type) {
+		select {
+		case err := <-pingErr:
+			return err
+		default:
+		}
+
+		s.RLock()
+		conn := s.conn
+		s.RUnlock()
+		if conn == nil {
+			return errors.New("connection is nil")
+		}
+
+		switch x := conn.Receive().(type) {
 		case error:
-			LogErrorf(" recv error: %s\n", x.Error())
-			s.done <- x
-			return
+			return x
 
 		case redis.Message:
 			if err := s.onMessage(x.Channel, x.Data); err != nil {
-				s.done <- err
-				break
+				LogErrorf("onMessage error: %s", err.Error())
 			}
 
 		case redis.Subscription:
-			switch x.Count {
-			case 0:
-				s.done <- nil
-				return
+			if x.Count == 0 {
+				return nil
 			}
 
 		case redis.Pong:
 			LogDebug(" pong")
 		}
 	}
+}
+
+func (s *subscriber) reconnect() bool {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.b.pool == nil {
+		return false
+	}
+
+	conn := &redis.PubSubConn{Conn: s.b.pool.Get()}
+	if conn.Conn == nil {
+		LogError("failed to get connection from pool")
+		return false
+	}
+
+	if err := conn.Subscribe(s.topic); err != nil {
+		_ = conn.Close()
+		LogErrorf("resubscribe error: %s", err.Error())
+		return false
+	}
+
+	s.conn = conn
+	LogInfof("reconnected and resubscribed to topic: %s", s.topic)
+	return true
 }
 
 func (s *subscriber) Options() broker.SubscribeOptions {

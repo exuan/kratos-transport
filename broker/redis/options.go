@@ -126,8 +126,6 @@ func WithDefaultOptions() broker.Option {
 		if o.Context == nil {
 			o.Context = context.Background()
 		}
-		x := o.Context.Value(optionsKey)
-
 		opts := &commonOptions{
 			maxIdle:        DefaultMaxIdle,
 			maxActive:      DefaultMaxActive,
@@ -137,10 +135,6 @@ func WithDefaultOptions() broker.Option {
 			writeTimeout:   DefaultWriteTimeout,
 		}
 
-		if x != nil {
-			x = opts
-		} else {
-			o.Context = context.WithValue(o.Context, optionsKey, opts)
-		}
+		o.Context = context.WithValue(o.Context, optionsKey, opts)
 	}
 }
