@@ -286,7 +286,10 @@ func WithMiddleware(m ...asynq.MiddlewareFunc) ServerOption {
 
 func WithLocation(name string) ServerOption {
 	return func(s *Server) {
-		loc, _ := time.LoadLocation(name)
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			panic("asynq: invalid timezone name: " + name + ", error: " + err.Error())
+		}
 		s.schedulerOpts.Location = loc
 	}
 }
@@ -299,7 +302,9 @@ func WithLogger(log *log.Helper) ServerOption {
 
 func WithLogLevel(log *log.Level) ServerOption {
 	return func(s *Server) {
-		_ = s.schedulerOpts.LogLevel.Set(log.String())
+		if log != nil {
+			_ = s.schedulerOpts.LogLevel.Set(log.String())
+		}
 	}
 }
 

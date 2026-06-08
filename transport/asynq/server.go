@@ -241,19 +241,27 @@ func (s *Server) init(opts ...ServerOption) {
 
 	var err error
 	if err = s.createAsynqServer(); err != nil {
-		s.err = err
+		if s.err == nil {
+			s.err = err
+		}
 		LogError("create asynq server failed:", err)
 	}
 	if err = s.createAsynqClient(); err != nil {
-		s.err = err
+		if s.err == nil {
+			s.err = err
+		}
 		LogError("create asynq client failed:", err)
 	}
 	if err = s.createAsynqScheduler(); err != nil {
-		s.err = err
+		if s.err == nil {
+			s.err = err
+		}
 		LogError("create asynq scheduler failed:", err)
 	}
 	if err = s.createAsynqInspector(); err != nil {
-		s.err = err
+		if s.err == nil {
+			s.err = err
+		}
 		LogError("create asynq inspector failed:", err)
 	}
 
@@ -481,8 +489,7 @@ func (s *Server) NewWaitResultTask(typeName string, msg any, opts ...asynq.Optio
 		}
 	}
 
-	_, err = waitResult(s.inspector, taskInfo)
-	if err != nil {
+	if _, err = waitResult(s.inspector, taskInfo); err != nil {
 		LogErrorf("[%s] wait result failed: %s", typeName, err.Error())
 		return err
 	}
@@ -492,21 +499,35 @@ func (s *Server) NewWaitResultTask(typeName string, msg any, opts ...asynq.Optio
 	return nil
 }
 
+const (
+	defaultWaitResultPollInterval = 1 * time.Second
+	defaultWaitResultTimeout      = 5 * time.Minute
+)
+
 func waitResult(intor *asynq.Inspector, info *asynq.TaskInfo) (*asynq.TaskInfo, error) {
-	taskInfo, err := intor.GetTaskInfo(info.Queue, info.ID)
-	if err != nil {
-		return nil, err
-	}
+	deadline := time.Now().Add(defaultWaitResultTimeout)
 
-	if taskInfo.State != asynq.TaskStateCompleted && taskInfo.State != asynq.TaskStateArchived && taskInfo.State != asynq.TaskStateRetry {
-		return waitResult(intor, info)
-	}
+	for {
+		taskInfo, err := intor.GetTaskInfo(info.Queue, info.ID)
+		if err != nil {
+			return nil, err
+		}
 
-	if taskInfo.State == asynq.TaskStateRetry {
-		return nil, fmt.Errorf("task state is %s", taskInfo.State.String())
-	}
+		switch taskInfo.State {
+		case asynq.TaskStateCompleted:
+			return taskInfo, nil
+		case asynq.TaskStateArchived:
+			return nil, fmt.Errorf("task state is %s", taskInfo.State.String())
+		case asynq.TaskStateRetry:
+			return nil, fmt.Errorf("task state is %s", taskInfo.State.String())
+		}
 
-	return taskInfo, nil
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("wait result timed out after %v (task state: %s)", defaultWaitResultTimeout, taskInfo.State.String())
+		}
+
+		time.Sleep(defaultWaitResultPollInterval)
+	}
 }
 
 // NewPeriodicTask enqueue a new crontab task
@@ -719,6 +740,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.keepaliveServer = nil
 	}
 
+	// 3. 清理定时任务注册表（在关闭 Scheduler 之前）
+	s.RemoveAllPeriodicTask()
+
 	// 4. 关闭定时调度器
 	if scheduler != nil {
 		scheduler.Shutdown()
@@ -771,9 +795,6 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 		s.inspector = nil
 	}
-
-	// 8. 清理任务注册表
-	s.RemoveAllPeriodicTask()
 
 	// 9. 最终状态
 	s.started.Store(false)
