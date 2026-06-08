@@ -80,8 +80,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	if s.keepaliveServer != nil {
 		go func() {
-			if s.err = s.keepaliveServer.Start(ctx); s.err != nil {
-				LogErrorf("keepalive server start failed: %s", s.err.Error())
+			if err := s.keepaliveServer.Start(ctx); err != nil {
+				LogErrorf("keepalive server start failed: %s", err.Error())
 			}
 		}()
 	}
@@ -92,6 +92,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if s.err = s.Connect(); s.err != nil {
+		LogErrorf("connect broker failed: [%s]", s.err.Error())
 		return s.err
 	}
 
@@ -182,11 +183,15 @@ func (s *Server) doRegisterSubscriber(routingKey string, handler broker.Handler,
 }
 
 func (s *Server) doRegisterSubscriberMap() error {
+	var errs error
 	for topic, opt := range s.subscriberOpts {
-		_ = s.doRegisterSubscriber(topic, opt.Handler, opt.Binder, opt.SubscribeOptions...)
+		if err := s.doRegisterSubscriber(topic, opt.Handler, opt.Binder, opt.SubscribeOptions...); err != nil {
+			LogErrorf("register subscriber failed, topic: %s, error: %s", topic, err.Error())
+			errs = err
+		}
 	}
 	s.subscriberOpts = make(transport.SubscribeOptionMap)
-	return nil
+	return errs
 }
 
 func (s *Server) Endpoint() (*url.URL, error) {
