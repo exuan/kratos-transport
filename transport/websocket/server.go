@@ -44,9 +44,6 @@ type Server struct {
 
 	sessionManager *SessionManager
 
-	register   chan *Session
-	unregister chan *Session
-
 	payloadType PayloadType
 
 	messageHandlers NetMessageHandlerMap
@@ -80,9 +77,6 @@ func NewServer(opts ...ServerOption) *Server {
 			WriteBufferSize: 1024,
 			CheckOrigin:     func(r *http.Request) bool { return true },
 		},
-
-		register:   make(chan *Session),
-		unregister: make(chan *Session),
 
 		payloadType: PayloadTypeBinary,
 	}
@@ -124,7 +118,10 @@ func (s *Server) init(opts ...ServerOption) error {
 		}
 	}
 
-	http.HandleFunc(s.path, s.wsHandler)
+	// Use a local ServeMux instead of http.DefaultServeMux to support multiple Server instances
+	mux := http.NewServeMux()
+	mux.HandleFunc(s.path, s.wsHandler)
+	s.Server.Handler = mux
 
 	return s.err
 }
@@ -252,7 +249,7 @@ func (s *Server) SendMessage(sessionId SessionID, messageType NetMessageType, me
 		break
 
 	case PayloadTypeText:
-		buf, err = s.codec.Marshal(message)
+		buf, err = s.marshalMessage(messageType, message)
 		if err != nil {
 			LogError("marshal text message error:", err)
 			return err
@@ -362,11 +359,13 @@ func (s *Server) wsHandler(res http.ResponseWriter, req *http.Request) {
 		token = req.Header.Get("Sec-Websocket-Protocol")
 	}
 
+	// Clone upgrader to avoid concurrent write to Subprotocols
+	upgrader := *s.upgrader
 	if token != "" {
-		s.upgrader.Subprotocols = []string{req.Header.Get("Sec-Websocket-Protocol")} //设置Sec-Websocket-Protocol
+		upgrader.Subprotocols = []string{token}
 	}
 
-	conn, err := s.upgrader.Upgrade(res, req, nil)
+	conn, err := upgrader.Upgrade(res, req, nil)
 	if err != nil {
 		LogError("upgrade exception:", err)
 		return
@@ -418,19 +417,19 @@ func (s *Server) Endpoint() (*url.URL, error) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	s.stateMu.Lock()
 	if s.running {
+		s.stateMu.Unlock()
 		return nil
 	}
 
 	if s.err = s.listenAndEndpoint(); s.err != nil {
-		return s.err
-	}
-
-	if s.err != nil {
+		s.stateMu.Unlock()
 		return s.err
 	}
 
 	s.running = true
+	s.stateMu.Unlock()
 
 	s.BaseContext = func(net.Listener) context.Context {
 		return ctx
@@ -450,16 +449,18 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) Stop(ctx context.Context) error {
+	s.stateMu.Lock()
 	if !s.running {
+		s.stateMu.Unlock()
 		return nil
 	}
+	s.running = false
+	s.stateMu.Unlock()
 
 	LogInfo("server stopping...")
 
 	err := s.Shutdown(ctx)
 	s.err = nil
-
-	s.running = false
 
 	LogInfo("server stopped.")
 

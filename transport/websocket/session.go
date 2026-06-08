@@ -121,31 +121,43 @@ func (s *Session) closeConnect() {
 }
 
 func (s *Session) sendPingMessage(message string) error {
-	if s.conn == nil {
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+	if conn == nil {
 		return nil
 	}
-	return s.conn.WriteMessage(ws.PingMessage, []byte(message))
+	return conn.WriteMessage(ws.PingMessage, []byte(message))
 }
 
 func (s *Session) sendPongMessage(message string) error {
-	if s.conn == nil {
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+	if conn == nil {
 		return nil
 	}
-	return s.conn.WriteMessage(ws.PongMessage, []byte(message))
+	return conn.WriteMessage(ws.PongMessage, []byte(message))
 }
 
 func (s *Session) sendTextMessage(message string) error {
-	if s.conn == nil {
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+	if conn == nil {
 		return nil
 	}
-	return s.conn.WriteMessage(ws.TextMessage, []byte(message))
+	return conn.WriteMessage(ws.TextMessage, []byte(message))
 }
 
 func (s *Session) sendBinaryMessage(message []byte) error {
-	if s.conn == nil {
+	s.connMu.RLock()
+	conn := s.conn
+	s.connMu.RUnlock()
+	if conn == nil {
 		return nil
 	}
-	return s.conn.WriteMessage(ws.BinaryMessage, message)
+	return conn.WriteMessage(ws.BinaryMessage, message)
 }
 
 func (s *Session) writePump() {
