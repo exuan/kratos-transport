@@ -7,10 +7,33 @@ import (
 	"github.com/tx7do/kratos-transport/broker"
 )
 
+// subscriberRemover is an interface for removing subscribers from the broker's map.
+type subscriberRemover interface {
+	removeSubscriber(topic string) bool
+}
+
+// Ensure both brokers implement subscriberRemover
+var _ subscriberRemover = (*natsBroker)(nil)
+var _ subscriberRemover = (*jetStreamBroker)(nil)
+
+func (b *natsBroker) removeSubscriber(topic string) bool {
+	if b.subscribers != nil {
+		return b.subscribers.RemoveOnly(topic)
+	}
+	return false
+}
+
+func (b *jetStreamBroker) removeSubscriber(topic string) bool {
+	if b.subscribers != nil {
+		return b.subscribers.RemoveOnly(topic)
+	}
+	return false
+}
+
 type subscriber struct {
 	sync.RWMutex
 
-	n       *natsBroker
+	remover subscriberRemover
 	s       *natsGo.Subscription
 	options broker.SubscribeOptions
 	closed  bool
@@ -44,8 +67,8 @@ func (s *subscriber) Unsubscribe(removeFromManager bool) error {
 	if s.s != nil {
 		err = s.s.Unsubscribe()
 
-		if s.n != nil && s.n.subscribers != nil && removeFromManager {
-			_ = s.n.subscribers.RemoveOnly(s.s.Subject)
+		if s.remover != nil && removeFromManager {
+			_ = s.remover.removeSubscriber(s.s.Subject)
 		}
 	}
 

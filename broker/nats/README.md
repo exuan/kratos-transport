@@ -1,115 +1,265 @@
 # NATS
 
-NATS是由CloudFoundry的架构师Derek开发的一个开源的、轻量级、高性能的，支持发布、订阅机制的分布式消息队列系统。它的核心基于EventMachine开发，代码量不多，可以下载下来慢慢研究。其核心原理就是基于消息发布订阅机制。每个台服务 器上的每个模块会根据自己的消息类别，向MessageBus发布多个消息主题；而同时也向自己需要交互的模块，按照需要的信息内容的消息主题订阅消息。 NATS原来是使用Ruby编写，可以实现每秒150k消息，后来使用Go语言重写，能够达到每秒8-11百万个消息，整个程序很小只有3M Docker image，它不支持持久化消息，如果你离线，你就不能获得消息。
+[NATS](https://nats.io/) 是一个高性能、轻量级的云原生分布式消息系统，最初由 Apcera（CloudFoundry 架构师 Derek Collison）使用 Go 语言开发。
 
-NATS适合云基础设施的消息通信系统、IoT设备消息通信和微服务架构。Apcera团队负责维护NATS服务器（Golang语言开发）和客户端（包括Go、Python、Ruby、Node.js、Elixir、Java、Nginx、C和C#），开源社区也贡献了一些客户端库，包括Rust、PHP、Lua等语言的库。目前已经采用了NATS系统的公司有：爱立信、HTC、百度、西门子、VMware。
+NATS 以其 **极致性能**（单节点可达 1800 万 msg/s）、**极小体积**（Docker 镜像仅 3MB）和 **简洁协议**（基于文本的 Publish/Subscribe 协议）著称，
+广泛用于云基础设施通信、IoT 设备消息、微服务架构等场景。
 
-## NATS的设计目标
+## 两种模式
 
-NATS的设计原则是：高性能、可伸缩能力、易于使用，基于这些原则，NATS的设计目标包括：
+本模块同时支持 **Core NATS** 和 **NATS JetStream** 两种运行模式：
 
-1. 高性能（fast） 
-2. 一直可用（dial tone） 
-3. 极度轻量级（small footprint） 
-4. 最多交付一次（fire and forget，消息发送后不管） 
-5. 支持多种消息通信模型和用例场景（flexible）
+| 特性 | Core NATS | JetStream |
+|------|-----------|-----------|
+| 消息模型 | Publish/Subscribe、Request/Reply、Queue | 同 Core NATS |
+| 持久化 | 不支持（发送后不管） | 支持（Stream 存储） |
+| 消息确认 | 无 | ACK / NAK / Term / InProgress |
+| 至少一次投递 | 不支持 | 支持 |
+| 消息去重 | 不支持 | `MsgId` 去重 |
+| 消息回放 | 不支持 | DeliverAll / DeliverLast / DeliverNew |
+| 消费者类型 | 无 | Push / Pull、Durable |
+| 流管理 | 无 | AddStream / DeleteStream |
+| Broker 构造 | `NewBroker()` | `NewJetStreamBroker()` |
 
-## NATS应用场景
+## 核心概念映射
 
-NATS理想的使用场景有：
+### Core NATS
 
-1. 寻址、发现 
-2. 命令和控制（控制面板） 
-3. 负载均衡 
-4. 多路可伸缩能力 
-5. 定位透明 
-6. 容错
+| Broker 概念 | NATS 概念 | 说明 |
+|------------|----------|------|
+| Topic | Subject | 消息主题，支持 `.` 分隔和 `*` / `>` 通配符 |
+| Publish | `conn.Publish()` | 即发即弃 |
+| Subscribe | `conn.Subscribe()` | 内存推送，无持久化 |
+| Request | `conn.Request()` | 请求-响应模式 |
 
-NATS设计哲学认为，高质量的QoS应该在客户端构建，故只建立了请求-应答，不提供：
+### JetStream
 
-1. 持久化 
-2. 事务处理 
-3. 增强的交付模式 
-4. 企业级队列
+| Broker 概念 | JetStream 概念 | 说明 |
+|------------|---------------|------|
+| Topic | Stream Subject | 消息路由目标，Stream 绑定多个 Subject |
+| Publish | `js.PublishMsg()` | 持久化存储，支持去重和预期验证 |
+| Subscribe | Push / Pull Consumer | Consumer 从 Stream 消费消息 |
+| Message.Ack() | `msg.Ack()` | 消费者确认消息 |
+| — | Stream | 持久化消息存储 |
 
-## 消息模式
+## Docker 部署开发环境
 
-支持3种消息模式：
-
-* Publish/Subscribe
-* Request/Reply
-* Queueing
-
-### Publish/Subscribe
-
-Publish/Subscribe是一对多的消息模型。Publisher往一个主题上发送消息，任何订阅了此主题的Subscriber都可以接收到该主题的消息。
-
-服务质量指标：
-
-* 至多发一次
-
-NATS系统是一种“发送后不管”的消息通信系统。往某主题上发送时，如果没有subscriber，或者所有subscriber不在线，则该消息不会给处理。如果需要更高的QoS，可以使用NATS Streaming，或者在客户端中增加可靠性。
-
-* 至少发一次(NATS Streaming)
-
-提供更高的的QoS，但是会付出降低吞吐率和增加延迟的代价。
-
-### Request/Reply
-
-publisher往主题中发布一个带预期响应的消息，subscriber执行请求调用，并返回最先的响应。 支持两种请求-响应消息通信模式：
-
-* 点对点：最快、最先的响应。
-* 一对多：可以限制Requestor收到的应答数量。
-
-### Queueing
-
-subscriber注册的时候，需指定一个队列名。指定相同队列名的subscriber，形成一个队列组。当主题收到消息后，订阅了此主题的队列组，会自动选择一个成员来接收消息。尽管队列组有多个subscriber，但每条消息只能被组中的一个subscriber接收。
-
-## NATS Protocol
-
-NATS连接协议是一个简单的、基于文本的发布/订阅风格的协议。与传统的二进制消息格式的消息通信系统不同，基于文本的NATS协议，使得客户端实现很简单，可以方便地选择多种编程语言或脚本语言来实现。
-
-### 协议约定
-
-#### 主题
-
-大小写敏感，必须是不能包含空格的非空字符串，可以包含标志分隔符”.”。
-
-#### 通配符
-
-订阅主题中可以使用通配符，但是通配符必须被标识分隔。支持两种通配符：
-
-星号*：匹配任意层级中的任意标记，如A.*.
-大于号>：匹配所有当前层级之后的标记，如A.>
-
-#### 新行
-
-CR+LF（即\r\n，0X0D0A）作为协议消息的终止。新行还用于标记PUB或MSG协议中消息的实际有效负载的开始。
-
-### 协议操作
-
-操作名是大小写不敏感的。详细的操作，参考[NATS Protocol](http://nats.io/documentation/internals/nats-protocol/)
-
-Client操作之后，Server都会给出相应的信息。
-
-* `+OK`：Server响应正确。
-* `-Err`：协议错误，将导致Client断开连接。
-
-## Docker部署开发环境
+Core NATS（无持久化）：
 
 ```shell
-docker pull bitnami/nats:latest
-docker pull bitnami/nats-exporter:latest
-
-docker run -itd \
-    --name nats-server \
-    --p 4222:4222 \
-    --p 6222:6222 \
-    --p 8000:8222 \
-    -e NATS_HTTP_PORT_NUMBER=8222 \
-    bitnami/nats:latest
+docker run -d --name nats-server \
+    -p 4222:4222 \
+    -p 8222:8222 \
+    nats:latest
 ```
 
-管理后台: <https://127.0.0.1:8000>
+JetStream（带持久化，需启用 JS）：
 
-## 参考资料
+```shell
+docker run -d --name nats-js \
+    -p 4222:4222 \
+    -p 8222:8222 \
+    nats:latest -js
+```
+
+- 客户端端口：`4222`
+- 监控面板：`http://localhost:8222`
+
+## 使用方式 — Core NATS
+
+### 基础：发布/订阅
+
+```go
+b := nats.NewBroker(
+    broker.WithAddress("nats://127.0.0.1:4222"),
+)
+b.Init()
+b.Connect()
+
+// 发布
+b.Publish(ctx, "test.subject", broker.NewMessage([]byte(`{"hello":"world"}`)))
+
+// 订阅
+_, err := b.Subscribe("test.subject", handler, binder)
+```
+
+### 基础：请求-响应
+
+```go
+// 发送请求（阻塞等待响应）
+reply, err := b.Request(ctx, "test.subject", broker.NewMessage(msg),
+    nats.WithRequestTimeout(2*time.Second),
+)
+```
+
+### 基础：队列组
+
+```go
+// 同一队列组的订阅者中只有一个会收到消息
+_, err := b.Subscribe("test.subject", handler, binder,
+    broker.WithSubscribeQueueName("order-group"),
+)
+```
+
+## 使用方式 — JetStream
+
+### 基础：创建 Stream + 发布 + 订阅
+
+```go
+b := nats.NewJetStreamBroker(
+    broker.WithAddress("nats://127.0.0.1:4222"),
+    broker.WithCodec("json"),
+)
+b.Init()
+b.Connect()
+
+// 创建 Stream
+js := nats.GetJetStreamContext(b)
+js.AddStream(&natsGo.StreamConfig{
+    Name:     "ORDERS",
+    Subjects: []string{"orders.*"},
+})
+
+// 发布到 JetStream（消息被持久化存储）
+b.Publish(ctx, "orders.create", broker.NewMessage(orderData))
+
+// 订阅（Push 模式，自动 Ack）
+_, err := b.Subscribe("orders.*", handler, binder,
+    nats.WithDurable("order-consumer"),
+    nats.WithDeliverNew(),
+)
+```
+
+### 高级：消息去重
+
+```go
+err := b.Publish(ctx, "orders.create", broker.NewMessage(orderData),
+    nats.WithMsgId("order-12345"),              // 幂等去重
+    nats.WithExpectStream("ORDERS"),            // 预期目标 Stream
+    nats.WithExpectLastSequence(42),            // 乐观并发控制
+)
+```
+
+### 高级：Pull 订阅
+
+```go
+// Pull 模式：消费者主动拉取消息，适合流控场景
+_, err := b.Subscribe("orders.*", handler, binder,
+    nats.WithPullSubscribe(),
+    nats.WithPullBatchSize(10),
+    nats.WithDurable("pull-consumer"),
+    nats.WithDeliverAll(),
+)
+```
+
+### 高级：手动确认 + NAK
+
+```go
+// 禁用自动 Ack，在 handler 中手动确认或拒绝
+_, err := b.Subscribe("orders.*", handler, binder,
+    nats.WithManualAck(),
+    nats.WithSubscribeAckWait(30*time.Second),
+    nats.WithSubscribeMaxAckPending(100),
+)
+
+// handler 中：
+func handler(ctx context.Context, event broker.Event) error {
+    msg, ok := nats.JetStreamMsgFromEvent(event)
+    if !ok {
+        return nil
+    }
+
+    // 处理失败 → NAK（触发重投）
+    if err := process(event); err != nil {
+        _ = msg.Nak()
+        return err
+    }
+
+    // 处理成功 → ACK
+    return msg.Ack()
+}
+```
+
+### 高级：流管理
+
+```go
+js := nats.GetJetStreamContext(b)
+
+// 创建 Stream
+js.AddStream(&natsGo.StreamConfig{
+    Name:     "ORDERS",
+    Subjects: []string{"orders.*"},
+    Retention: natsGo.LimitsPolicy,
+    MaxMsgs:  10000,
+})
+
+// 更新 Stream
+js.UpdateStream(&natsGo.StreamConfig{
+    Name:     "ORDERS",
+    Subjects: []string{"orders.*", "returns.*"},
+})
+
+// 删除 Stream
+js.DeleteStream("ORDERS")
+
+// 查看消费者信息
+info, _ := js.ConsumerInfo("ORDERS", "order-consumer")
+```
+
+### 高级：消息高级操作
+
+```go
+msg, ok := nats.JetStreamMsgFromEvent(event)
+if ok {
+    msg.InProgress()  // 标记处理中（延长 Ack 超时）
+    msg.Nak()         // 否定确认（触发重投）
+    msg.Term()        // 终止消息（不再重投）
+    msg.Ack()         // 确认消息
+}
+```
+
+## 支持的 JetStream 选项
+
+### Broker 选项
+
+| 选项 | 说明 |
+|------|------|
+| `JetStreamContextOptions(opts ...natsGo.JSOpt)` | JetStream 上下文选项 |
+
+### Publish 选项
+
+| 选项 | 说明 |
+|------|------|
+| `WithMsgId(id)` | 消息 ID（去重） |
+| `WithExpectStream(stream)` | 预期目标 Stream |
+| `WithExpectLastSequence(seq)` | 预期最后序列号 |
+| `WithExpectLastSequencePerSubject(seq)` | 预期 Subject 最后序列号 |
+| `WithExpectLastMsgId(id)` | 预期最后消息 ID |
+| `WithPublishRawOpts(opts ...)` | 传递原生 PubOpt |
+
+### Subscribe 选项
+
+| 选项 | 说明 |
+|------|------|
+| `WithDurable(name)` | Durable Consumer 名称 |
+| `WithDeliverAll()` | 从头投递所有消息 |
+| `WithDeliverLast()` | 仅投递最后一条消息 |
+| `WithDeliverNew()` | 仅投递新消息 |
+| `WithStartSequence(seq)` | 从指定序列号开始 |
+| `WithStartTime(t)` | 从指定时间开始 |
+| `WithSubscribeAckWait(d)` | ACK 等待超时 |
+| `WithSubscribeMaxAckPending(n)` | 最大未确认消息数 |
+| `WithBindStream(stream)` | 绑定到指定 Stream |
+| `WithReplayInstant()` | 快速回放模式 |
+| `WithManualAck()` | 手动确认模式 |
+| `WithPullSubscribe()` | Pull 模式 |
+| `WithPullBatchSize(n)` | Pull 批量大小 |
+| `WithSubscribeRawOpts(opts ...)` | 传递原生 SubOpt |
+
+## 工具函数
+
+| 函数 | 说明 |
+|------|------|
+| `GetJetStreamContext(b)` | 获取底层 `JetStreamContext`（流管理） |
+| `JetStreamMsgFromEvent(evt)` | 从 Event 提取底层 `*natsGo.Msg`（NAK/Term/InProgress） |
+| `GetConn(b)` | 获取底层 `*natsGo.Conn` |

@@ -191,7 +191,9 @@ func (b *natsBroker) Disconnect() error {
 		if b.conn != nil {
 			_ = b.conn.Drain()
 		}
-		b.closeCh <- nil
+		if b.closeCh != nil {
+			b.closeCh <- nil
+		}
 	}
 
 	b.subscribers.Clear()
@@ -284,7 +286,7 @@ func (b *natsBroker) Subscribe(topic string, handler broker.Handler, binder brok
 	}
 
 	subs := &subscriber{
-		n:       b,
+		remover: b,
 		s:       nil,
 		options: options,
 	}
@@ -397,7 +399,9 @@ func (b *natsBroker) request(ctx context.Context, topic string, msg *broker.Mess
 	m.Data = msg.BodyBytes()
 
 	var timeout = time.Second * 2
-	timeout, _ = options.Context.Value(requestTimeoutKey{}).(time.Duration)
+	if v, ok := options.Context.Value(requestTimeoutKey{}).(time.Duration); ok && v > 0 {
+		timeout = v
+	}
 
 	if headers, ok := options.Context.Value(headersKey{}).(map[string][]string); ok {
 		for k, v := range headers {
