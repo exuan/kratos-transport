@@ -56,6 +56,22 @@ func WithExternalAuth() broker.Option {
 	return broker.OptionContextWithValue(externalAuthKey{}, ExternalAuthentication{})
 }
 
+type exchangesKey struct{}
+type defaultExchangeNameKey struct{}
+
+// WithExchanges registers multiple exchanges on the connection.
+// The first exchange in the list becomes the default if WithExchangeName is not used.
+func WithExchanges(exchanges ...Exchange) broker.Option {
+	return broker.OptionContextWithValue(exchangesKey{}, exchanges)
+}
+
+// WithDefaultExchange sets the default exchange name for publish/subscribe
+// when no exchange is explicitly specified. The exchange must already be registered
+// (via WithExchanges or the legacy WithExchangeName).
+func WithDefaultExchange(name string) broker.Option {
+	return broker.OptionContextWithValue(defaultExchangeNameKey{}, name)
+}
+
 type confirmModeKey struct{}
 type onReturnKey struct{}
 type onConfirmKey struct{}
@@ -122,6 +138,14 @@ func WithSubscribeContext(ctx context.Context) broker.SubscribeOption {
 
 func WithAckOnSuccess() broker.SubscribeOption {
 	return broker.SubscribeContextWithValue(ackSuccessKey{}, true)
+}
+
+type subscribeExchangeKey struct{}
+
+// WithSubscribeExchange specifies which exchange to bind the queue to for this subscription.
+// If not set, the default exchange is used.
+func WithSubscribeExchange(name string) broker.SubscribeOption {
+	return broker.SubscribeContextWithValue(subscribeExchangeKey{}, name)
 }
 
 ///
@@ -234,4 +258,12 @@ func WithPublishDeclareQueue(queueName string, durableQueue, autoDelete bool, qu
 // (triggering the OnReturn callback if registered).
 func WithMandatory() broker.PublishOption {
 	return broker.PublishContextWithValue(mandatoryKey{}, true)
+}
+
+type publishExchangeKey struct{}
+
+// WithPublishExchange specifies which exchange to publish to.
+// If not set, the default exchange is used.
+func WithPublishExchange(name string) broker.PublishOption {
+	return broker.PublishContextWithValue(publishExchangeKey{}, name)
 }

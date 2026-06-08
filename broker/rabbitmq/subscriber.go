@@ -17,9 +17,10 @@ type subscriber struct {
 	topic   string
 	ch      *rabbitChannel
 
-	queueArgs map[string]any
-	fn        func(msg amqp.Delivery)
-	headers   map[string]any
+	exchangeName string
+	queueArgs    map[string]any
+	fn           func(msg amqp.Delivery)
+	headers      map[string]any
 
 	durableQueue bool
 	autoDelete   bool
@@ -84,6 +85,7 @@ func (s *subscriber) resubscribe() {
 		}
 
 		ch, sub, err := s.r.conn.Consume(
+			s.exchangeName,
 			s.options.Queue,
 			s.topic,
 			s.headers,

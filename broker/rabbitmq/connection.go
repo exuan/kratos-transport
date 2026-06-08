@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -60,9 +61,10 @@ type rabbitConnection struct {
 
 	options broker.Options
 
-	url      string
-	exchange Exchange
-	qos      Qos
+	url                 string
+	exchanges           map[string]*Exchange
+	defaultExchangeName string
+	qos                 Qos
 
 	confirmMode bool
 	onReturn    ReturnHandler
@@ -78,7 +80,6 @@ func newRabbitMQConnection(opts broker.Options) *rabbitConnection {
 		options:        opts,
 		url:            DefaultRabbitURL,
 		qos:            DefaultQos,
-		exchange:       DefaultExchange,
 		close:          make(chan bool),
 		waitConnection: make(chan struct{}),
 	}
@@ -93,14 +94,47 @@ func (r *rabbitConnection) init() {
 		r.url = r.options.Addrs[0]
 	}
 
+	r.exchanges = make(map[string]*Exchange)
+
+	// start with default exchange
+	defaultEx := DefaultExchange
+	r.exchanges[defaultEx.Name] = &defaultEx
+	r.defaultExchangeName = defaultEx.Name
+
+	// apply legacy single-exchange options (override default exchange)
+	legacyEx := defaultEx
 	if val, ok := r.options.Context.Value(exchangeNameKey{}).(string); ok {
-		r.exchange.Name = val
+		legacyEx.Name = val
 	}
 	if val, ok := r.options.Context.Value(exchangeKindKey{}).(string); ok {
-		r.exchange.Type = val
+		legacyEx.Type = val
 	}
 	if val, ok := r.options.Context.Value(exchangeDurableKey{}).(bool); ok {
-		r.exchange.Durable = val
+		legacyEx.Durable = val
+	}
+	if legacyEx.Name != defaultEx.Name {
+		delete(r.exchanges, defaultEx.Name)
+	}
+	r.exchanges[legacyEx.Name] = &legacyEx
+	r.defaultExchangeName = legacyEx.Name
+
+	// apply multi-exchange registration
+	if vals, ok := r.options.Context.Value(exchangesKey{}).([]Exchange); ok && len(vals) > 0 {
+		for i := range vals {
+			ex := vals[i]
+			r.exchanges[ex.Name] = &ex
+		}
+		// if no legacy exchange name was set, use first as default
+		if _, hasLegacy := r.options.Context.Value(exchangeNameKey{}).(string); !hasLegacy {
+			r.defaultExchangeName = vals[0].Name
+		}
+	}
+
+	// apply explicit default exchange name override
+	if val, ok := r.options.Context.Value(defaultExchangeNameKey{}).(string); ok {
+		if _, exists := r.exchanges[val]; exists {
+			r.defaultExchangeName = val
+		}
 	}
 
 	if val, ok := r.options.Context.Value(prefetchCountKey{}).(int); ok {
@@ -244,7 +278,12 @@ func (r *rabbitConnection) tryConnect(secure bool, config *amqp.Config) error {
 		return err
 	}
 
-	_ = r.Channel.DeclareExchange(r.exchange.Name, r.exchange.Type, r.exchange.Durable, false)
+	// declare all registered exchanges
+	for _, ex := range r.exchanges {
+		if err := r.Channel.DeclareExchange(ex.Name, ex.Type, ex.Durable, false); err != nil {
+			LogErrorf("declare exchange '%s' failed: %v", ex.Name, err)
+		}
+	}
 
 	if !EnableLazyInitPublishChannel {
 		r.ExchangeChannel, err = newRabbitChannel(r.Connection, r.qos)
@@ -253,9 +292,29 @@ func (r *rabbitConnection) tryConnect(secure bool, config *amqp.Config) error {
 	return err
 }
 
-func (r *rabbitConnection) Consume(queueName, routingKey string, bindArgs amqp.Table, qArgs amqp.Table, autoAck, durableQueue, autoDel bool) (*rabbitChannel, <-chan amqp.Delivery, error) {
+func (r *rabbitConnection) GetExchange(name string) (*Exchange, error) {
+	if name == "" {
+		name = r.defaultExchangeName
+	}
+	ex, ok := r.exchanges[name]
+	if !ok {
+		return nil, fmt.Errorf("exchange '%s' not registered", name)
+	}
+	return ex, nil
+}
+
+func (r *rabbitConnection) Consume(exchangeName, queueName, routingKey string, bindArgs amqp.Table, qArgs amqp.Table, autoAck, durableQueue, autoDel bool) (*rabbitChannel, <-chan amqp.Delivery, error) {
+	ex, err := r.GetExchange(exchangeName)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	consumerChannel, err := newRabbitChannel(r.Connection, r.qos)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err = consumerChannel.DeclareExchange(ex.Name, ex.Type, ex.Durable, false); err != nil {
 		return nil, nil, err
 	}
 
@@ -268,15 +327,24 @@ func (r *rabbitConnection) Consume(queueName, routingKey string, bindArgs amqp.T
 		return nil, nil, err
 	}
 
-	if err = consumerChannel.BindQueue(queueName, routingKey, r.exchange.Name, bindArgs); err != nil {
+	if err = consumerChannel.BindQueue(queueName, routingKey, ex.Name, bindArgs); err != nil {
 		return nil, nil, err
 	}
 
 	return consumerChannel, deliveries, nil
 }
 
-func (r *rabbitConnection) DeclarePublishQueue(queueName, routingKey string, bindArgs amqp.Table, queueArgs amqp.Table, durableQueue, autoDel bool) error {
+func (r *rabbitConnection) DeclarePublishQueue(exchangeName, queueName, routingKey string, bindArgs amqp.Table, queueArgs amqp.Table, durableQueue, autoDel bool) error {
 	if err := r.lazyInitPublishChannel(); err != nil {
+		return err
+	}
+
+	ex, err := r.GetExchange(exchangeName)
+	if err != nil {
+		return err
+	}
+
+	if err := r.ExchangeChannel.DeclareExchange(ex.Name, ex.Type, ex.Durable, false); err != nil {
 		return err
 	}
 
@@ -284,7 +352,7 @@ func (r *rabbitConnection) DeclarePublishQueue(queueName, routingKey string, bin
 		return err
 	}
 
-	if err := r.ExchangeChannel.BindQueue(queueName, routingKey, r.exchange.Name, bindArgs); err != nil {
+	if err := r.ExchangeChannel.BindQueue(queueName, routingKey, ex.Name, bindArgs); err != nil {
 		return err
 	}
 

@@ -159,19 +159,105 @@ b := rabbitmq.NewBroker(
 )
 ```
 
+### 高级：多 Exchange
+
+一个 Broker 实例注册多个 Exchange，在发布/订阅时按需选择：
+
+```go
+b := rabbitmq.NewBroker(
+    broker.WithAddress("amqp://127.0.0.1:5672/"),
+    rabbitmq.WithExchanges(
+        rabbitmq.Exchange{Name: "orders", Type: "topic", Durable: true},
+        rabbitmq.Exchange{Name: "events", Type: "fanout", Durable: true},
+        rabbitmq.Exchange{Name: "logs", Type: "direct", Durable: false},
+    ),
+    // 可选：显式指定默认 Exchange（不设则用列表第一个）
+    // rabbitmq.WithDefaultExchange("orders"),
+)
+
+// 发布到指定 Exchange
+b.Publish(ctx, "order.created", msg,
+    rabbitmq.WithPublishExchange("orders"),
+)
+
+// 订阅指定 Exchange
+b.Subscribe("order.*", handler, binder,
+    rabbitmq.WithSubscribeExchange("orders"),
+    broker.WithSubscribeQueueName("order-queue"),
+)
+```
+
+> **向后兼容**：不使用 `WithExchanges` 时，行为与之前完全一致（单 Exchange 模式）。
+
+### 高级：Publisher Confirms（发布确认）
+
+开启后，Broker 会对每条发布的消息异步返回 ack/nack 确认：
+
+```go
+b := rabbitmq.NewBroker(
+    broker.WithAddress("amqp://127.0.0.1:5672/"),
+    rabbitmq.WithExchangeName("my-exchange"),
+
+    // 开启 Confirm 模式
+    rabbitmq.WithConfirmMode(),
+
+    // 注册确认回调（可选）
+    rabbitmq.WithOnConfirm(func(conf amqp.Confirmation) {
+        if conf.Ack {
+            log.Infof("message confirmed, tag: %d", conf.DeliveryTag)
+        } else {
+            log.Warnf("message nacked, tag: %d", conf.DeliveryTag)
+        }
+    }),
+)
+
+b.Publish(ctx, "routing-key", msg)
+```
+
+> 不注册 `WithOnConfirm` 时，ack/nack 仅输出日志。
+
+### 高级：Publisher Returns（消息退回）
+
+当消息无法路由到任何队列时（mandatory=true），Broker 会将消息退回：
+
+```go
+b := rabbitmq.NewBroker(
+    broker.WithAddress("amqp://127.0.0.1:5672/"),
+    rabbitmq.WithExchangeName("my-exchange"),
+
+    // 注册退回回调
+    rabbitmq.WithOnReturn(func(ret amqp.Return) {
+        log.Errorf("message returned: %s, exchange: %s, routing-key: %s",
+            ret.ReplyText, ret.Exchange, ret.RoutingKey)
+    }),
+)
+
+// 发布时设置 mandatory 标志
+b.Publish(ctx, "routing-key", msg,
+    rabbitmq.WithMandatory(),
+)
+```
+
+> 不注册 `WithOnReturn` 时，退回消息仅输出错误日志。
+
 ## 配置选项
 
 ### Broker 选项
 
 | 选项 | 说明 |
 |------|------|
-| `rabbitmq.WithExchangeName(name)` | Exchange 名称 |
+| `rabbitmq.WithExchangeName(name)` | Exchange 名称（单 Exchange 模式） |
 | `rabbitmq.WithExchangeType(kind)` | Exchange 类型（fanout/direct/topic/headers） |
 | `rabbitmq.WithDurableExchange()` | 持久化 Exchange |
+| `rabbitmq.WithExchanges(exs...)` | 注册多个 Exchange（多 Exchange 模式） |
+| `rabbitmq.WithDefaultExchange(name)` | 指定默认 Exchange 名称 |
 | `rabbitmq.WithPrefetchCount(n)` | 预取数量 |
 | `rabbitmq.WithPrefetchSize(n)` | 预取大小（字节） |
 | `rabbitmq.WithPrefetchGlobal()` | 全局预取 |
 | `rabbitmq.WithExternalAuth()` | 外部认证 |
+| `rabbitmq.WithConfirmMode()` | 开启 Publisher Confirms |
+| `rabbitmq.WithOnConfirm(fn)` | 注册确认回调（需配合 `WithConfirmMode`） |
+| `rabbitmq.WithOnReturn(fn)` | 注册消息退回回调 |
 
 ### Publish 选项
 
@@ -188,6 +274,8 @@ b := rabbitmq.NewBroker(
 | `rabbitmq.WithTimestamp(t)` | 时间戳 |
 | `rabbitmq.WithPublishHeaders(h)` | AMQP Headers |
 | `rabbitmq.WithPublishDeclareQueue(...)` | 发布时声明队列 |
+| `rabbitmq.WithMandatory()` | 设置 mandatory 标志（无法路由时触发 Return） |
+| `rabbitmq.WithPublishExchange(name)` | 指定发布的目标 Exchange |
 
 ### Subscribe 选项
 
@@ -199,6 +287,7 @@ b := rabbitmq.NewBroker(
 | `rabbitmq.WithQueueArguments(args)` | 队列参数（x-message-ttl 等） |
 | `rabbitmq.WithRequeueOnError()` | 处理失败时重新入队 |
 | `rabbitmq.WithAckOnSuccess()` | 处理成功自动 ACK |
+| `rabbitmq.WithSubscribeExchange(name)` | 指定订阅的目标 Exchange |
 
 ## Docker部署开发环境
 

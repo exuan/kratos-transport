@@ -221,11 +221,19 @@ func (b *rabbitBroker) publish(ctx context.Context, routingKey string, msg *brok
 		}
 	}
 
+	// determine target exchange
+	var exchangeName string
+	if val, ok := options.Context.Value(publishExchangeKey{}).(string); ok && val != "" {
+		exchangeName = val
+	} else {
+		exchangeName = b.conn.defaultExchangeName
+	}
+
 	if val, ok := options.Context.Value(publishDeclareQueueKey{}).(*DeclarePublishQueueInfo); ok {
 		if val.Durable {
 			val.AutoDelete = false
 		}
-		if err := b.conn.DeclarePublishQueue(val.Queue, routingKey, val.BindArguments, val.QueueArguments, val.Durable, val.AutoDelete); err != nil {
+		if err := b.conn.DeclarePublishQueue(exchangeName, val.Queue, routingKey, val.BindArguments, val.QueueArguments, val.Durable, val.AutoDelete); err != nil {
 			return err
 		}
 	}
@@ -238,7 +246,7 @@ func (b *rabbitBroker) publish(ctx context.Context, routingKey string, msg *brok
 		mandatory = val
 	}
 
-	err := b.conn.Publish(ctx, b.conn.exchange.Name, routingKey, mandatory, rMsg)
+	err := b.conn.Publish(ctx, exchangeName, routingKey, mandatory, rMsg)
 
 	b.finishProducerSpan(ctx, span, routingKey, err)
 
@@ -303,10 +311,19 @@ func (b *rabbitBroker) Subscribe(routingKey string, handler broker.Handler, bind
 		b.finishConsumerSpan(ctx, span, p.err)
 	}
 
+	// determine target exchange for subscription
+	var subscribeExchangeName string
+	if val, ok := options.Context.Value(subscribeExchangeKey{}).(string); ok && val != "" {
+		subscribeExchangeName = val
+	} else {
+		subscribeExchangeName = b.conn.defaultExchangeName
+	}
+
 	sub := &subscriber{
 		topic:        routingKey,
 		options:      options,
 		r:            b,
+		exchangeName: subscribeExchangeName,
 		durableQueue: true,
 		autoDelete:   false,
 		fn:           fn,
