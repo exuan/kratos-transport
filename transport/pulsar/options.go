@@ -51,7 +51,7 @@ func WithGlobalPropagator() ServerOption {
 	}
 }
 
-func WithTracerProvider(provider trace.TracerProvider, tracerName string) ServerOption {
+func WithTracerProvider(provider trace.TracerProvider, _ string) ServerOption {
 	return func(s *Server) {
 		s.brokerOpts = append(s.brokerOpts, broker.WithTracerProvider(provider))
 	}

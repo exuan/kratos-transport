@@ -112,15 +112,25 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) Stop(ctx context.Context) error {
+	if !s.started.Load() {
+		return nil
+	}
+
 	LogInfo("server stopping...")
+
+	for _, v := range s.subscribers {
+		_ = v.Unsubscribe(false)
+	}
+	s.subscribers = make(broker.SubscriberMap)
+	s.subscriberOpts = make(transport.SubscribeOptionMap)
 
 	s.started.Store(false)
 	err := s.Disconnect()
 	s.err = nil
 
 	if s.keepaliveServer != nil {
-		if err := s.keepaliveServer.Stop(ctx); err != nil {
-			LogError("keepalive server stop failed", s.err)
+		if keepaliveErr := s.keepaliveServer.Stop(ctx); keepaliveErr != nil {
+			LogErrorf("keepalive server stop failed: %s", keepaliveErr.Error())
 		}
 		s.keepaliveServer = nil
 	}
@@ -182,21 +192,23 @@ func (s *Server) doRegisterSubscriber(topic string, handler broker.Handler, bind
 		return err
 	}
 
+	if _, exists := s.subscribers[topic]; exists {
+		LogWarnf("subscriber for topic '%s' already exists, overwriting", topic)
+	}
 	s.subscribers[topic] = sub
-
 	return nil
 }
 
 func (s *Server) doRegisterSubscriberMap() error {
-	var errs error
+	var errs []error
 	for topic, opt := range s.subscriberOpts {
 		if err := s.doRegisterSubscriber(topic, opt.Handler, opt.Binder, opt.SubscribeOptions...); err != nil {
 			LogErrorf("register subscriber failed, topic: %s, error: %s", topic, err.Error())
-			errs = err
+			errs = append(errs, err)
 		}
 	}
 	s.subscriberOpts = make(transport.SubscribeOptionMap)
-	return errs
+	return errors.Join(errs...)
 }
 
 func (s *Server) Endpoint() (*url.URL, error) {

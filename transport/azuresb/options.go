@@ -1,6 +1,11 @@
 package azuresb
 
 import (
+	"crypto/tls"
+
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/tx7do/kratos-transport/broker"
 	"github.com/tx7do/kratos-transport/broker/azuresb"
 )
@@ -25,6 +30,44 @@ func WithConnectionString(connStr string) ServerOption {
 func WithCodec(c string) ServerOption {
 	return func(s *Server) {
 		s.brokerOpts = append(s.brokerOpts, broker.WithCodec(c))
+	}
+}
+
+// WithTLSConfig TLS配置
+func WithTLSConfig(c *tls.Config) ServerOption {
+	return func(s *Server) {
+		if c != nil {
+			s.brokerOpts = append(s.brokerOpts, broker.WithEnableSecure(true))
+		}
+		s.brokerOpts = append(s.brokerOpts, broker.WithTLSConfig(c))
+	}
+}
+
+// WithGlobalTracerProvider 注入全局的链路追踪器的Provider
+func WithGlobalTracerProvider() ServerOption {
+	return func(s *Server) {
+		s.brokerOpts = append(s.brokerOpts, broker.WithGlobalTracerProvider())
+	}
+}
+
+// WithGlobalPropagator 注入全局的链路追踪器的Propagator
+func WithGlobalPropagator() ServerOption {
+	return func(s *Server) {
+		s.brokerOpts = append(s.brokerOpts, broker.WithGlobalPropagator())
+	}
+}
+
+// WithTracerProvider 注入链路追踪器的Provider
+func WithTracerProvider(provider trace.TracerProvider, _ string) ServerOption {
+	return func(s *Server) {
+		s.brokerOpts = append(s.brokerOpts, broker.WithTracerProvider(provider))
+	}
+}
+
+// WithPropagator 注入链路追踪器的Propagator
+func WithPropagator(propagators propagation.TextMapPropagator) ServerOption {
+	return func(s *Server) {
+		s.brokerOpts = append(s.brokerOpts, broker.WithPropagator(propagators))
 	}
 }
 
