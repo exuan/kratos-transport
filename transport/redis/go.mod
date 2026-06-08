@@ -18,7 +18,7 @@ require (
 	github.com/tx7do/kratos-transport/broker/redis v1.3.2
 	github.com/tx7do/kratos-transport/testing v1.1.2
 	github.com/tx7do/kratos-transport/transport v1.3.4
-	github.com/tx7do/kratos-transport/transport/keepalive v1.3.3
+	github.com/tx7do/kratos-transport/transport/keepalive v1.3.4
 )
 
 require (

@@ -18,7 +18,7 @@ require (
 	github.com/tx7do/kratos-transport/broker/rocketmq v1.3.2
 	github.com/tx7do/kratos-transport/testing v1.1.2
 	github.com/tx7do/kratos-transport/transport v1.3.4
-	github.com/tx7do/kratos-transport/transport/keepalive v1.3.3
+	github.com/tx7do/kratos-transport/transport/keepalive v1.3.4
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 )
