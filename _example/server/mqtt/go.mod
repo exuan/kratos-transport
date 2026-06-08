@@ -12,8 +12,8 @@ replace (
 
 require (
 	github.com/go-kratos/kratos/v2 v2.9.2
-	github.com/tx7do/kratos-transport/broker v1.3.2
-	github.com/tx7do/kratos-transport/testing v1.1.1
+	github.com/tx7do/kratos-transport/broker v1.3.3
+	github.com/tx7do/kratos-transport/testing v1.1.2
 	github.com/tx7do/kratos-transport/transport/mqtt v1.3.2
 )
 
@@ -29,7 +29,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/tx7do/kratos-transport/broker/mqtt v1.3.5 // indirect
-	github.com/tx7do/kratos-transport/tracing v1.1.1 // indirect
+	github.com/tx7do/kratos-transport/tracing v1.1.2 // indirect
 	github.com/tx7do/kratos-transport/transport v1.3.3 // indirect
 	github.com/tx7do/kratos-transport/transport/keepalive v1.3.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
