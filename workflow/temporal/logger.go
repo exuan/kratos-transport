@@ -7,12 +7,8 @@ import (
 )
 
 const (
-	logKey = "[temporal]"
+	logKey = "[Temporal]"
 )
-
-///
-/// logger
-///
 
 func LogDebug(args ...any) {
 	log.Debugf("%s %s", logKey, fmt.Sprint(args...))
@@ -33,10 +29,6 @@ func LogError(args ...any) {
 func LogFatal(args ...any) {
 	log.Fatalf("%s %s", logKey, fmt.Sprint(args...))
 }
-
-///
-/// logger format
-///
 
 func LogDebugf(format string, args ...any) {
 	log.Debugf("%s %s", logKey, fmt.Sprintf(format, args...))

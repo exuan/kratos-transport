@@ -6,7 +6,6 @@ import (
 
 var _ propagation.TextMapCarrier = (*mapCarrier)(nil)
 
-// mapCarrier is a simple in-memory TextMapCarrier for OpenTelemetry trace propagation.
 type mapCarrier struct {
 	m map[string]string
 }
