@@ -3,7 +3,6 @@ package kafka
 import (
 	"context"
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 	"sync"
@@ -344,10 +343,6 @@ func isFatalError(s *subscriber, err error) bool {
 	if err == nil {
 		return false
 	}
-	// EOF 表示读取流结束，直接退出
-	if errors.Is(err, io.EOF) {
-		return true
-	}
 	// 如果外部上下文已被取消/截止，立即退出
 	if errors.Is(err, context.Canceled) || (s != nil && s.options.Context != nil && s.options.Context.Err() != nil) {
 		return true
@@ -363,14 +358,8 @@ func isFatalError(s *subscriber, err error) bool {
 			return true
 		}
 	}
-	// 如果错误实现了 Temporary() bool（例如某些 kafka 库错误），且为非临时，则致命
-	type temporary interface {
-		Temporary() bool
-	}
-	if te, ok := err.(temporary); ok {
-		if !te.Temporary() {
-			return true
-		}
-	}
+	// io.EOF 通常是连接断开（broker 重启、rebalance、网络波动等），
+	// kafka-go Reader 内部会自动重建连接，只需退避重试即可，不应退出。
+	// 其余错误（包括 EOF）均视为可重试的临时错误。
 	return false
 }
