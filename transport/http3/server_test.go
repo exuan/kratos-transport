@@ -48,12 +48,18 @@ func TestServer(t *testing.T) {
 
 	srv.HandleFunc("/hygrothermograph", HygrothermographHandler)
 
-	if err := srv.Start(ctx); err != nil {
-		panic(err)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if err := srv.Start(ctx); err != nil {
+			panic(err)
+		}
+	}()
 
 	defer func() {
-		if err := srv.Stop(ctx); err != nil {
+		cancel()
+		if err := srv.Stop(context.Background()); err != nil {
 			t.Errorf("expected nil got %v", err)
 		}
 	}()

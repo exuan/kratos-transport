@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -80,7 +81,10 @@ func (s *Server) init(opts ...ServerOption) {
 	s.router.NotFoundHandler = http.DefaultServeMux
 	s.router.MethodNotAllowedHandler = http.DefaultServeMux
 
-	s.Server.Handler = kHttp.FilterChain(s.filters...)(s.router)
+	// Apply the request filter middleware (timeout control, transport injection)
+	handler := s.filter()(s.router)
+
+	s.Server.Handler = kHttp.FilterChain(s.filters...)(handler)
 }
 
 func (s *Server) Endpoint() (*url.URL, error) {
@@ -103,13 +107,13 @@ func (s *Server) listenAndEndpoint() error {
 		}
 
 		addr := host + ":" + fmt.Sprint(port)
-		s.endpoint = transport.NewRegistryEndpoint(KindHTTP3, addr)
+		s.endpoint = transport.NewRegistryEndpoint("https", addr)
 	}
 
 	return nil
 }
 
-func (s *Server) Start(_ context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	if s.err = s.listenAndEndpoint(); s.err != nil {
 		return s.err
 	}
@@ -117,14 +121,16 @@ func (s *Server) Start(_ context.Context) error {
 	LogInfof("server listening on: %s", s.Addr)
 
 	if err := s.ListenAndServe(); err != nil {
-		LogErrorf("start server failed: %s", err.Error())
-		return err
+		if !errors.Is(err, http.ErrServerClosed) {
+			LogErrorf("start server failed: %s", err.Error())
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (s *Server) Stop(_ context.Context) error {
+func (s *Server) Stop(ctx context.Context) error {
 	LogInfo("server stopping...")
 
 	err := s.Close()
@@ -195,7 +201,7 @@ func (s *Server) filter() mux.MiddlewareFunc {
 }
 
 func (s *Server) generateTLSConfig() *tls.Config {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		panic(err)
 	}
@@ -213,6 +219,6 @@ func (s *Server) generateTLSConfig() *tls.Config {
 	}
 	return &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		NextProtos:   []string{"kratos-quic-server"},
+		NextProtos:   []string{"h3"},
 	}
 }
