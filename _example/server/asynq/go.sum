@@ -57,8 +57,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tx7do/kratos-transport/transport v1.3.4 h1:6eKWtpFzRYgUx9E91N1X3IbEvYbhRuqb9ZQiqWDhos8=
 github.com/tx7do/kratos-transport/transport v1.3.4/go.mod h1:9vCAHfD2/NVwwCICV58/ZzoI2sz0B2lyP8fVZmAgh5o=
-github.com/tx7do/kratos-transport/transport/keepalive v1.3.4 h1:qu8Z+JVPw62D3h25KOq3L0QtKEFNhH+YEN/9gxMJjRQ=
-github.com/tx7do/kratos-transport/transport/keepalive v1.3.4/go.mod h1:qHv9LLJTvon40EpDWbbMhkRUqPuc0QcAHLy1LdPUeuE=
+github.com/tx7do/kratos-transport/transport/keepalive v1.3.5 h1:p1B1jpGN3SqoTrrrSmgsvv5RC/NvCHVbB970u7OTdKQ=
+github.com/tx7do/kratos-transport/transport/keepalive v1.3.5/go.mod h1:vfYTnR7EpZfn2+jv1rscmhfNTDvEa5TBDEgU6iuTFwA=
 github.com/zeebo/xxh3 v1.0.2 h1:xZmwmqxHZA8AI603jOQ0tMqmBr9lPeFwGg6d+xy9DC0=
 github.com/zeebo/xxh3 v1.0.2/go.mod h1:5NWz9Sef7zIDm2JHfFlcQvNekmcEl9ekUZQQKCYaDcA=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=

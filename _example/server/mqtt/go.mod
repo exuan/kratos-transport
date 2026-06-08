@@ -27,10 +27,10 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
-	github.com/tx7do/kratos-transport/broker/mqtt v1.3.5 // indirect
+	github.com/tx7do/kratos-transport/broker/mqtt v1.3.6 // indirect
 	github.com/tx7do/kratos-transport/tracing v1.1.2 // indirect
 	github.com/tx7do/kratos-transport/transport v1.3.4 // indirect
-	github.com/tx7do/kratos-transport/transport/keepalive v1.3.4 // indirect
+	github.com/tx7do/kratos-transport/transport/keepalive v1.3.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect

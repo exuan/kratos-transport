@@ -12,7 +12,7 @@ replace (
 require (
 	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/tx7do/kratos-transport/broker v1.3.3
-	github.com/tx7do/kratos-transport/broker/rabbitmq v1.3.2
+	github.com/tx7do/kratos-transport/broker/rabbitmq v1.3.3
 	github.com/tx7do/kratos-transport/testing v1.1.2
 )
 
