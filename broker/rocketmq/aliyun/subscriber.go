@@ -32,13 +32,14 @@ func (s *Subscriber) Unsubscribe(removeFromManager bool) error {
 	s.Lock()
 	defer s.Unlock()
 
-	s.closed = true
-
-	var err error
-
-	if removeFromManager {
-
+	if s.closed {
+		return nil
 	}
 
-	return err
+	s.closed = true
+
+	// Signal doConsume goroutine to stop
+	close(s.done)
+
+	return nil
 }

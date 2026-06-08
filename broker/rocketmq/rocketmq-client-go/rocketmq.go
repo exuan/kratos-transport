@@ -147,13 +147,6 @@ func (b *rocketmqBroker) Connect() error {
 	}
 	b.RUnlock()
 
-	p, err := b.createProducer()
-	if err != nil {
-		return err
-	}
-
-	_ = p.Shutdown()
-
 	b.Lock()
 	b.connected = true
 	b.Unlock()
@@ -294,7 +287,10 @@ func (b *rocketmqBroker) createConsumer(options *broker.SubscribeOptions) (rocke
 		consumerOptions = append(consumerOptions, consumer.WithTrace(traceCfg))
 	}
 
-	c, _ := rocketmq.NewPushConsumer(consumerOptions...)
+	c, err := rocketmq.NewPushConsumer(consumerOptions...)
+	if err != nil {
+		return nil, err
+	}
 
 	if c == nil {
 		return nil, errors.New("create consumer error")
@@ -388,31 +384,35 @@ func (b *rocketmqBroker) publish(ctx context.Context, topic string, msg *broker.
 
 	var err error
 	var ret *primitive.SendResult
-	ret, err = p.SendSync(b.options.Context, rMsg)
+	ret, err = p.SendSync(ctx, rMsg)
 	if err != nil {
 		b.logger.Errorf("[rocketmq]: send message error: %s\n", err)
-		switch cached {
-		case false:
-		case true:
+
+		// If using a cached producer, remove it and retry with a new one
+		if cached {
 			b.Lock()
-			if err = p.Shutdown(); err != nil {
-				b.Unlock()
-				break
-			}
+			_ = p.Shutdown()
 			delete(b.producers, topic)
 			b.Unlock()
 
-			p, err = b.createProducer()
-			if err != nil {
-				b.Unlock()
-				break
+			var retryErr error
+			p, retryErr = b.createProducer()
+			if retryErr != nil {
+				b.finishProducerSpan(ctx, span, "", err)
+				return err
 			}
-			if ret, err = p.SendSync(b.options.Context, rMsg); err == nil {
-				b.Lock()
-				b.producers[topic] = p
-				b.Unlock()
-				break
+
+			ret, retryErr = p.SendSync(ctx, rMsg)
+			if retryErr != nil {
+				b.finishProducerSpan(ctx, span, "", retryErr)
+				return retryErr
 			}
+
+			err = nil // retry succeeded, clear original error
+
+			b.Lock()
+			b.producers[topic] = p
+			b.Unlock()
 		}
 	}
 
@@ -457,8 +457,8 @@ func (b *rocketmqBroker) Subscribe(topic string, handler broker.Handler, binder 
 			//b.logger.Infof("[rocketmq] subscribe callback: %v \n", msgs)
 
 			var errSub error
-			var m broker.Message
 			for _, msg := range msgs {
+				var m broker.Message
 				p := &publication{topic: msg.Topic, reader: sub.reader, m: &m, rm: &msg.Message, ctx: options.Context}
 
 				newCtx, span := b.startConsumerSpan(ctx, msg)
@@ -487,10 +487,12 @@ func (b *rocketmqBroker) Subscribe(topic string, handler broker.Handler, binder 
 				if sub.options.AutoAck {
 					if errSub = p.Ack(); errSub != nil {
 						b.logger.Errorf("unable to commit msg: %v", errSub)
+						b.finishConsumerSpan(newCtx, span, errSub)
+						continue
 					}
 				}
 
-				b.finishConsumerSpan(newCtx, span, errSub)
+				b.finishConsumerSpan(newCtx, span, nil)
 			}
 
 			return consumer.ConsumeSuccess, nil

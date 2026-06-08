@@ -43,7 +43,7 @@ func (s *subscriber) Unsubscribe(removeFromManager bool) error {
 	s.closed = true
 
 	if removeFromManager {
-
+		_ = s.r.subscribers.RemoveOnly(s.topic)
 	}
 
 	return err

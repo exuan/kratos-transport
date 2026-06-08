@@ -25,11 +25,10 @@ func (c ProducerMessageCarrier) Set(key, val string) {
 }
 
 func (c ProducerMessageCarrier) Keys() []string {
-	out := make([]string, len(c.msg.GetProperties()))
-	var i = 0
-	for _, k := range c.msg.GetProperties() {
-		out[i] = k
-		i++
+	props := c.msg.GetProperties()
+	out := make([]string, 0, len(props))
+	for k := range props {
+		out = append(out, k)
 	}
 	return out
 }

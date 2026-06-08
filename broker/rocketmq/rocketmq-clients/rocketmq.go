@@ -3,7 +3,6 @@ package rocketmqClients
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -52,6 +51,7 @@ type rocketmqBroker struct {
 	producers   map[string]rmqClient.Producer
 	consumer    rmqClient.SimpleConsumer
 	subscribers *broker.SubscriberSyncMap
+	done        chan struct{}
 
 	subscriptionExpressions map[string]*rmqClient.FilterExpression
 	awaitDuration           time.Duration
@@ -76,6 +76,7 @@ func NewBroker(opts ...broker.Option) broker.Broker {
 		producers:         make(map[string]rmqClient.Producer),
 		subscribers:       broker.NewSubscriberSyncMap(),
 		credentials:       rocketmqOption.Credentials{},
+		done:              make(chan struct{}),
 	}
 }
 
@@ -187,20 +188,11 @@ func (b *rocketmqBroker) Connect() error {
 	}
 	b.RUnlock()
 
-	p, err := b.createProducer()
-	if err != nil {
-		return err
-	}
-
-	if p != nil {
-		_ = p.GracefulStop()
-	}
-
 	b.Lock()
 	b.connected = true
 	b.Unlock()
 
-	return err
+	return nil
 }
 
 func (b *rocketmqBroker) Disconnect() error {
@@ -213,12 +205,19 @@ func (b *rocketmqBroker) Disconnect() error {
 
 	b.Lock()
 	defer b.Unlock()
+	close(b.done)
+
 	for _, p := range b.producers {
 		if err := p.GracefulStop(); err != nil {
 			return err
 		}
 	}
 	b.producers = make(map[string]rmqClient.Producer)
+
+	if b.consumer != nil {
+		_ = b.consumer.GracefulStop()
+		b.consumer = nil
+	}
 
 	b.connected = false
 	return nil
@@ -262,7 +261,7 @@ func (b *rocketmqBroker) publish(ctx context.Context, topic string, msg *broker.
 	producer, ok := b.producers[topic]
 	if !ok {
 		var err error
-		producer, err = b.createProducer()
+		producer, err = b.createProducer(topic)
 		if err != nil {
 			b.Unlock()
 			return err
@@ -326,7 +325,7 @@ func (b *rocketmqBroker) doSend(ctx context.Context, producer rmqClient.Producer
 
 	var err error
 	var receipts []*rmqClient.SendReceipt
-	receipts, err = producer.Send(b.options.Context, rMsg)
+	receipts, err = producer.Send(ctx, rMsg)
 	if err != nil {
 		LogErrorf("send message error: %s\n", err)
 		b.finishProducerSpan(ctx, span, nil, err)
@@ -361,6 +360,8 @@ func (b *rocketmqBroker) doSendTransaction(ctx context.Context, producer rmqClie
 	var err error
 	var receipts []*rmqClient.SendReceipt
 	if receipts, err = producer.SendWithTransaction(ctx, rMsg, transaction); err != nil {
+		LogErrorf("send transaction message error: %s\n", err)
+		b.finishProducerSpan(ctx, span, nil, err)
 		return err
 	}
 
@@ -424,8 +425,9 @@ func (b *rocketmqBroker) Subscribe(topic string, handler broker.Handler, binder 
 }
 
 func (b *rocketmqBroker) makeConfig() *rmqClient.Config {
+	endpoint := b.Address()
 	return &rmqClient.Config{
-		Endpoint:      b.nameServers[0],
+		Endpoint:      endpoint,
 		NameSpace:     b.namespace,
 		ConsumerGroup: b.groupName,
 		Credentials: &credentials.SessionCredentials{
@@ -437,6 +439,10 @@ func (b *rocketmqBroker) makeConfig() *rmqClient.Config {
 }
 
 func (b *rocketmqBroker) createProducer(topic ...string) (producer rmqClient.Producer, err error) {
+	if len(topic) == 0 {
+		return nil, errors.New("at least one topic is required")
+	}
+
 	cfg := b.makeConfig()
 
 	var opts []rmqClient.ProducerOption
@@ -484,7 +490,11 @@ func (b *rocketmqBroker) createConsumer(options *broker.SubscribeOptions) (consu
 func (b *rocketmqBroker) run() {
 	ctx := b.options.Context
 	for {
-		//fmt.Println("start receive message")
+		select {
+		case <-b.done:
+			return
+		default:
+		}
 
 		if b.consumer == nil {
 			return
@@ -509,16 +519,15 @@ func (b *rocketmqBroker) run() {
 
 			sub := b.subscribers.Get(mv.GetTopic())
 			if sub == nil {
-				err = errors.New(fmt.Sprintf("[%s] subscriber not found", mv.GetTopic()))
-				LogErrorf(err.Error())
-				b.finishConsumerSpan(newCtx, span, err)
+				LogErrorf("[%s] subscriber not found", mv.GetTopic())
+				b.finishConsumerSpan(newCtx, span, errors.New("subscriber not found"))
 				continue
 			}
 
 			aSub := sub.(*subscriber)
 
 			if err = aSub.onMessage(newCtx, mv); err != nil {
-				LogErrorf("[%s] subscriber not found", mv.GetTopic())
+				LogErrorf("[%s] onMessage failed: %s", mv.GetTopic(), err.Error())
 				b.finishConsumerSpan(newCtx, span, err)
 				continue
 			}

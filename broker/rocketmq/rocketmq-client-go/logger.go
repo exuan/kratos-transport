@@ -62,7 +62,7 @@ func (l *logger) Warning(msg string, fields map[string]any) {
 }
 
 func (l *logger) Warningf(format string, a ...any) {
-	l.Logf(log.LevelInfo, format, a...)
+	l.Logf(log.LevelWarn, format, a...)
 }
 
 func (l *logger) Error(msg string, fields map[string]any) {

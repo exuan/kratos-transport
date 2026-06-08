@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	aliyun "github.com/aliyunmq/mq-http-go-sdk"
-	"github.com/gogap/errors"
+	gogapErrors "github.com/gogap/errors"
 
 	"github.com/tx7do/kratos-transport/broker"
 	rocketmqOption "github.com/tx7do/kratos-transport/broker/rocketmq/option"
@@ -239,9 +240,11 @@ func (b *aliyunmqBroker) publish(ctx context.Context, topic string, msg *broker.
 	ret, err := p.PublishMessage(aMsg)
 	if err != nil {
 		LogErrorf("send message error: %s\n", err)
+		b.finishProducerSpan(ctx, span, "", err)
+		return err
 	}
 
-	b.finishProducerSpan(ctx, span, ret.MessageId, err)
+	b.finishProducerSpan(ctx, span, ret.MessageId, nil)
 
 	return nil
 }
@@ -290,8 +293,8 @@ func (b *aliyunmqBroker) doConsume(sub *Subscriber) {
 			case resp := <-respChan:
 				{
 					var err error
-					var m broker.Message
 					for _, msg := range resp.Messages {
+						var m broker.Message
 
 						ctx, span := b.startConsumerSpan(sub.options.Context, &msg)
 
@@ -309,7 +312,7 @@ func (b *aliyunmqBroker) doConsume(sub *Subscriber) {
 							m.Body = sub.binder()
 
 							if err = broker.Unmarshal(b.options.Codec, []byte(msg.MessageBody), &m.Body); err != nil {
-								LogError(err)
+								LogErrorf("unmarshal message failed: %v", err)
 								b.finishConsumerSpan(ctx, span, err)
 								continue
 							}
@@ -326,19 +329,25 @@ func (b *aliyunmqBroker) doConsume(sub *Subscriber) {
 						if sub.options.AutoAck {
 							if err = p.Ack(); err != nil {
 								// 某些消息的句柄可能超时，会导致消息消费状态确认不成功。
-								if errAckItems, ok := err.(errors.ErrCode).Context()["Detail"].([]aliyun.ErrAckItem); ok {
-									for _, errAckItem := range errAckItems {
-										LogErrorf("ErrorHandle:%s, ErrorCode:%s, ErrorMsg:%s\n",
-											errAckItem.ErrorHandle, errAckItem.ErrorCode, errAckItem.ErrorMsg)
+								if errCode, ok := err.(gogapErrors.ErrCode); ok {
+									if errAckItems, ok := errCode.Context()["Detail"].([]aliyun.ErrAckItem); ok {
+										for _, errAckItem := range errAckItems {
+											LogErrorf("ErrorHandle:%s, ErrorCode:%s, ErrorMsg:%s\n",
+												errAckItem.ErrorHandle, errAckItem.ErrorCode, errAckItem.ErrorMsg)
+										}
+									} else {
+										LogErrorf("ack err: %v", err)
 									}
 								} else {
-									LogError("ack err =", err)
+									LogErrorf("ack err: %v", err)
 								}
+								b.finishConsumerSpan(ctx, span, err)
 								time.Sleep(time.Duration(3) * time.Second)
+								continue
 							}
 						}
 
-						b.finishConsumerSpan(ctx, span, err)
+						b.finishConsumerSpan(ctx, span, nil)
 					}
 
 					endChan <- 1
@@ -346,8 +355,11 @@ func (b *aliyunmqBroker) doConsume(sub *Subscriber) {
 			case err := <-errChan:
 				{
 					// Topic中没有消息可消费。
-					if strings.Contains(err.(errors.ErrCode).Error(), "MessageNotExist") {
-						//LogDebug("No new message, continue!")
+					if errCode, ok := err.(gogapErrors.ErrCode); ok {
+						if !strings.Contains(errCode.Error(), "MessageNotExist") {
+							LogError(err)
+							time.Sleep(time.Duration(3) * time.Second)
+						}
 					} else {
 						LogError(err)
 						time.Sleep(time.Duration(3) * time.Second)
@@ -360,7 +372,7 @@ func (b *aliyunmqBroker) doConsume(sub *Subscriber) {
 					endChan <- 1
 				}
 
-			case sub.done <- struct{}{}:
+			case <-sub.done:
 				return
 			}
 		}()
