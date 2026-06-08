@@ -237,7 +237,7 @@ func (b *rabbitBroker) publish(ctx context.Context, routingKey string, msg *brok
 
 	b.finishProducerSpan(ctx, span, routingKey, err)
 
-	return nil
+	return err
 }
 
 func (b *rabbitBroker) Subscribe(routingKey string, handler broker.Handler, binder broker.Binder, opts ...broker.SubscribeOption) (broker.Subscriber, error) {

@@ -18,23 +18,45 @@ func NewProducerMessageCarrier(msg *amqp.Publishing) ProducerMessageCarrier {
 	return ProducerMessageCarrier{msg: msg}
 }
 
+func formatHeaderValue(v any) string {
+	switch t := v.(type) {
+	case []byte:
+		return string(t)
+	case string:
+		return t
+	case int:
+		return strconv.FormatInt(int64(t), 10)
+	case int8:
+		return strconv.FormatInt(int64(t), 10)
+	case int16:
+		return strconv.FormatInt(int64(t), 10)
+	case int32:
+		return strconv.FormatInt(int64(t), 10)
+	case int64:
+		return strconv.FormatInt(t, 10)
+	case uint:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(t), 10)
+	case uint64:
+		return strconv.FormatUint(t, 10)
+	case float32:
+		return strconv.FormatFloat(float64(t), 'f', -1, 32)
+	case float64:
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	default:
+		return ""
+	}
+}
+
 func (c ProducerMessageCarrier) Get(key string) string {
 	for k, v := range c.msg.Headers {
 		if k == key {
-			switch t := v.(type) {
-			case []byte:
-				return string(t)
-			case string:
-				return t
-			case int, int8, int16, int32, int64:
-				return strconv.FormatInt(t.(int64), 10)
-			case uint, uint8, uint16, uint32, uint64:
-				return strconv.FormatUint(t.(uint64), 10)
-			case float32, float64:
-				return strconv.FormatFloat(t.(float64), 'f', -1, 64)
-			default:
-				return ""
-			}
+			return formatHeaderValue(v)
 		}
 	}
 	return ""
@@ -65,20 +87,7 @@ func NewConsumerMessageCarrier(msg *amqp.Delivery) ConsumerMessageCarrier {
 func (c ConsumerMessageCarrier) Get(key string) string {
 	for k, v := range c.msg.Headers {
 		if k == key {
-			switch t := v.(type) {
-			case []byte:
-				return string(t)
-			case string:
-				return t
-			case int, int8, int16, int32, int64:
-				return strconv.FormatInt(t.(int64), 10)
-			case uint, uint8, uint16, uint32, uint64:
-				return strconv.FormatUint(t.(uint64), 10)
-			case float32, float64:
-				return strconv.FormatFloat(t.(float64), 'f', -1, 64)
-			default:
-				return ""
-			}
+			return formatHeaderValue(v)
 		}
 	}
 	return ""

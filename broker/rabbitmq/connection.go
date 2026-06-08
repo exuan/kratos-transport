@@ -81,8 +81,6 @@ func newRabbitMQConnection(opts broker.Options) *rabbitConnection {
 
 	conn.init()
 
-	close(conn.waitConnection)
-
 	return conn
 }
 
@@ -119,7 +117,9 @@ func (r *rabbitConnection) connect(secure bool, config *amqp.Config) error {
 
 	r.Lock()
 	r.connected = true
+	r.ExchangeChannel = nil
 	r.Unlock()
+	close(r.waitConnection)
 
 	go r.reconnect(secure, config)
 	return nil
@@ -127,16 +127,22 @@ func (r *rabbitConnection) connect(secure bool, config *amqp.Config) error {
 
 func (r *rabbitConnection) reconnect(secure bool, config *amqp.Config) {
 	var connect bool
+	reconnectDelay := 1 * time.Second
+	maxReconnectDelay := 30 * time.Second
 
 	for {
 		if connect {
 			if err := r.tryConnect(secure, config); err != nil {
-				time.Sleep(1 * time.Second)
+				time.Sleep(reconnectDelay)
+				if reconnectDelay < maxReconnectDelay {
+					reconnectDelay *= 2
+				}
 				continue
 			}
 
 			r.Lock()
 			r.connected = true
+			r.ExchangeChannel = nil
 			r.Unlock()
 			close(r.waitConnection)
 		}
@@ -158,8 +164,12 @@ func (r *rabbitConnection) reconnect(secure bool, config *amqp.Config) {
 		select {
 		case result, ok := <-channelNotifyReturn:
 			if !ok {
-				// Channel closed, probably also the channel or connection.
-				return
+				r.Lock()
+				r.connected = false
+				r.waitConnection = make(chan struct{})
+				r.ExchangeChannel = nil
+				r.Unlock()
+				continue
 			}
 			LogErrorf("notify error reason: %s, description: %s", result.ReplyText, result.Exchange)
 		case err := <-chanNotifyClose:
