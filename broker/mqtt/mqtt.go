@@ -108,7 +108,7 @@ func newClient(addrs []string, opts broker.Options, b *mqttBroker) paho.Client {
 	if _, ok := opts.Context.Value(debugLoggerKey{}).(bool); ok {
 		paho.DEBUG = DebugLogger{}
 	}
-	if opt, ok := opts.Context.Value(debugLoggerKey{}).(LoggerOptions); ok {
+	if opt, ok := opts.Context.Value(loggerKey{}).(LoggerOptions); ok {
 		if opt.Error {
 			paho.ERROR = ErrorLogger{}
 		}
@@ -247,6 +247,7 @@ func (m *mqttBroker) publish(ctx context.Context, topic string, msg *broker.Mess
 	}
 
 	ret := m.client.Publish(topic, qos, retained, msg.Body)
+	ret.Wait()
 	return ret.Error()
 }
 
@@ -258,6 +259,10 @@ func (m *mqttBroker) Subscribe(topic string, handler broker.Handler, binder brok
 	var options broker.SubscribeOptions
 	for _, o := range opts {
 		o(&options)
+	}
+
+	if options.Context == nil {
+		options.Context = context.Background()
 	}
 
 	if len(m.options.SubscriberMiddlewares) > 0 {
@@ -272,7 +277,7 @@ func (m *mqttBroker) Subscribe(topic string, handler broker.Handler, binder brok
 	callback := func(c paho.Client, mq paho.Message) {
 		var msg broker.Message
 
-		p := &publication{topic: mq.Topic(), msg: &msg}
+		p := &publication{topic: mq.Topic(), msg: &msg, raw: mq}
 
 		if binder != nil {
 			msg.Body = binder()
@@ -286,7 +291,7 @@ func (m *mqttBroker) Subscribe(topic string, handler broker.Handler, binder brok
 			msg.Body = mq.Payload()
 		}
 
-		if err := handler(m.options.Context, p); err != nil {
+		if err := handler(context.Background(), p); err != nil {
 			p.err = err
 			LogError("handle message failed:", err)
 		}

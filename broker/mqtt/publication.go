@@ -1,10 +1,14 @@
 package mqtt
 
-import "github.com/tx7do/kratos-transport/broker"
+import (
+	paho "github.com/eclipse/paho.mqtt.golang"
+	"github.com/tx7do/kratos-transport/broker"
+)
 
 type publication struct {
 	topic string
 	msg   *broker.Message
+	raw   paho.Message
 	err   error
 }
 
@@ -25,5 +29,5 @@ func (p *publication) Message() *broker.Message {
 }
 
 func (p *publication) RawMessage() any {
-	return p.msg
+	return p.raw
 }
