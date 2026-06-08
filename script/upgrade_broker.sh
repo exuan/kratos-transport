@@ -7,6 +7,6 @@ do
     cur_path=`realpath $root_path/$folder`
     echo $cur_path
     cd $cur_path
-    go get all
+    go get -u ./...
     go mod tidy
 done

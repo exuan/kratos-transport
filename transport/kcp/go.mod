@@ -12,11 +12,11 @@ replace (
 
 require (
 	github.com/go-kratos/kratos/v2 v2.9.2
-	github.com/tx7do/go-utils/id v0.0.4
+	github.com/tx7do/go-utils/id v0.0.6
 	github.com/tx7do/kratos-transport/broker v1.3.2
 	github.com/tx7do/kratos-transport/transport v1.3.3
 	github.com/xtaci/kcp-go/v5 v5.6.72
-	golang.org/x/crypto v0.49.0
+	golang.org/x/crypto v0.50.0
 )
 
 require (
@@ -37,9 +37,9 @@ require (
 	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/sony/sonyflake v1.3.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	github.com/tx7do/go-utils v1.1.35 // indirect
+	github.com/tx7do/go-utils v1.1.40 // indirect
 	github.com/tx7do/kratos-transport/tracing v1.1.1 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect
@@ -51,7 +51,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
