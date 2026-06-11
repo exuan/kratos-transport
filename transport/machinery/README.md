@@ -35,14 +35,14 @@ Machinery一共提供了三种任务编排方式：
 ### Redis
 
 ```shell
-docker pull bitnami/redis:latest
+docker pull soldevelo/redis:latest
 docker pull bitnami/redis-exporter:latest
 
 docker run -itd \
     --name redis-test \
     -p 6379:6379 \
     -e ALLOW_EMPTY_PASSWORD=yes \
-    bitnami/redis:latest
+    soldevelo/redis:latest
 ```
 
 ## 参考资料

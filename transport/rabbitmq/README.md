@@ -114,7 +114,7 @@ Exchange有4种类型对应4种不同的路由策略:
 ## Docker部署开发环境
 
 ```shell
-docker pull bitnami/rabbitmq:latest
+docker pull soldevelo/rabbitmq:latest
 
 docker run -itd \
     --hostname localhost \
@@ -124,7 +124,7 @@ docker run -itd \
     -p 1883:1883 \
     -p 15675:15675 \
     -e RABBITMQ_PLUGINS=rabbitmq_top,rabbitmq_mqtt,rabbitmq_web_mqtt,rabbitmq_prometheus,rabbitmq_stomp,rabbitmq_auth_backend_http \
-    bitnami/rabbitmq:latest
+    soldevelo/rabbitmq:latest
 
 # 查看插件列表
 rabbitmq-plugins list

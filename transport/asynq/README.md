@@ -27,14 +27,14 @@ go install github.com/hibiken/asynq/tools/asynq
 ### Redis
 
 ```shell
-docker pull bitnami/redis:latest
+docker pull soldevelo/redis:latest
 docker pull bitnami/redis-exporter:latest
 
 docker run -itd \
     --name redis-test \
     -p 6379:6379 \
     -e ALLOW_EMPTY_PASSWORD=yes \
-    bitnami/redis:latest
+    soldevelo/redis:latest
 ```
 
 ### Asynqmon
