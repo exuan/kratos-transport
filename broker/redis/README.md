@@ -116,13 +116,13 @@ func main() {
 ## Docker 部署开发环境
 
 ```shell
-docker pull bitnami/redis:latest
+docker pull soldevelo/redis:latest
 
 docker run -itd \
     --name redis-test \
     -p 6379:6379 \
     -e ALLOW_EMPTY_PASSWORD=yes \
-    bitnami/redis:latest
+    soldevelo/redis:latest
 ```
 
 ## 管理工具
